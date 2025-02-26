@@ -1,5 +1,6 @@
 ## How to configure or add one terminal 
 # and make it the default terminal
+
 - Installer votre terminal par cli (En fonction de votre Distro) 
 - Trouver son dossier bin source
 - pwd (Copie du chemin)
@@ -8,6 +9,7 @@
 - Ensuite executer: chsh -s /path/to/bin/terminal username
 
 ## NB
+
 - Voici un terminal que je recommande beaucoup pour son interface et sa maniabilité: Warp
 - Site officiel du Warp: https://www.warp.dev/
 - Vouz pouvez télecharger le fichier d'installation en fonction de votre OS
