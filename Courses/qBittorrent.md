@@ -1,4 +1,9 @@
-## How to use qBittorrent:
+# qBittorent
+
+- C'est un logiciel open-source offrant une alternative pour µTorrent.
+
+
+## How to use qBittorrent
 
 - Veuillez le télecharger et l'installer dans votre OS
 - Démarre le service
