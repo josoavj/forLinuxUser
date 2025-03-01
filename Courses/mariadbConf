@@ -1,8 +1,0 @@
-# Installation et configuration basique de mariadb
-- Mise a jour des paquets et des répertoires apt: sudo apt update
-- Installation de mariadb: sudo apt install mariadb-server
-- Démarrage du service mariadb via systemctl: sudo systemctl start mariadb
-- Vérification si le service fonctionne correctement: sudo systemctl status mariadb
-- Confifguration de mariadb: sudo mysql_secure_installation
-
-
