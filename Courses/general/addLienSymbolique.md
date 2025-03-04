@@ -1,3 +1,5 @@
+### Ajout de lien symbolique dans une distribution Linux
+
 > Pour installer un logiciel:
   -> fichier .tar: Extract > Aller dans bin(Ou fichier d'installation au cas où ce n'est pas bin) > Copier le chemin de cet installation
 
