@@ -1,7 +1,7 @@
 # Mariadb Server on Arch Based Distro
 
 - Configuration de mariadb dans les distributions Linux basés sur Arch 
-- OS utilisé: Garuda Linux (Kernel : Linux 6.13.5-zen1-1-zen)
+- **OS utilisé:** Garuda Linux (Kernel : Linux 6.13.5-zen1-1-zen)
 
 ## Installation de mariadb
 
@@ -34,7 +34,7 @@
 ## Configuration de la sécurité de mariadb
 
 - Exécutez la commande suivante et suivez bien les instructions recommandées:
-  - sudo mariadb-secure-installation
+  - `sudo mariadb-secure-installation`
 
 
 
