@@ -1,4 +1,6 @@
-# Custom config for linux
+# forLinuxUser
+
+## About
 
 - **Type:** Dépot contenant des fichier de configuration et customisation de mon environnement Linux ou aussi des petits tutoriels variés sous Linux
 - **Contenu:** Texte simple ou au format MarkDown
