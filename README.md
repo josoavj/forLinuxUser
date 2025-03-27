@@ -13,7 +13,7 @@ forLinuxUser/
 ├── Courses                             # Pour les divers tutoriels de programme ou outils sur les distro Linux
     ├── Cybersec                        # Pour les tutos ou simple docs sur la cybersécurité 
     ├── Network                         # Pour les tutos simples des outils ou commande utiles en Networking
-    ├── Databasesrv                     # Pour les bases de données dans les distributions Linux (En particulier ceux basés sur Arch Linux)
+    ├── DatabaseSrv                     # Pour les bases de données dans les distributions Linux (En particulier ceux basés sur Arch Linux)
     ├── general                         # Des docs ou tutos sur des commandes ou outils sous les distro Linux
     ├── gitTutorial                     # Tutoriel Git (& GitHub)
     └── tools                           # Outils utiles pour les distro Linux
