@@ -19,7 +19,7 @@ forLinuxUser/
     └── tools                           # Outils utiles pour les distro Linux
 ├── forArchUser                         # Pour les utilisateurs utilisant un distro basé sur Arch Linux
     └── garudaConf                      # Configuration des outils ou extensions sous Garuda Linux
-├── generalKnowledge                    # Connaissance génerale
+├── generalKnowledge                    # Connaissance générale
 ├── issuesResolving                     # Pour des petits tutos sur la résolution de problèmes courants ou spécifiques sur les distro Linux
 └── README.md                           # Documentation
 ```
