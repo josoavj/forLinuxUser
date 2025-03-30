@@ -6,7 +6,7 @@
 - **Contenu:** Texte simple ou au format MarkDown
 - **Auteur:** [josoavj](https://github.com/josoavj)
 
-## Structuration des dossiers
+## 📂 Structuration des dossiers
 
 ```
 forLinuxUser/
