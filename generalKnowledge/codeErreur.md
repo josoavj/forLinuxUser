@@ -2,8 +2,7 @@
 
 Sous Linux, les codes d'erreurs sont des nombres entiers qui signalent la raison pour laquelle une opération système ou une commande a échoué. 
 Ils sont définis dans le fichier d'en-tête `/usr/include/errno.h` (ou un fichier similaire selon la distribution).
-**NB:** La liste des codes suivant sont des code d'erreurs fréquents
-
+**NB:** La liste des codes suivants sont des codes d'erreurs fréquents
 ### Catégorie : Opérations sur les fichiers et répertoires
 
 - **EPERM (1):** Opération non permise. L'utilisateur n'a pas les droits nécessaires pour effectuer l'opération sur le fichier ou le répertoire.
