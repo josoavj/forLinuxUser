@@ -1,5 +1,4 @@
-# Problèmes renctontrés sous mariadb 
-
+# Problèmes rencontrés sous mariadb 
 ## Cible: Distribution Linux
 
 
