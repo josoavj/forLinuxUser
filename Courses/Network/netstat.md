@@ -28,7 +28,7 @@ Parlons un peu de cet utilitaire en ligne de commande, pratique pour explorer et
 - `netstat -p` : Affiche le PID (Process ID) et le nom du programme associé à chaque connexion. Tu auras peut-être besoin d'utiliser sudo devant la commande pour voir ces informations pour tous les processus. 
    - Exemple : `sudo netstat -ap`. 
 - `netstat -n` : Affiche les adresses et les ports sous forme numérique, au lieu d'essayer de les résoudre en noms d'hôtes. C'est plus rapide et peut être utile pour éviter des problèmes de résolution DNS.
-- `netstat -r` : Affiche la table de routage du noyau.
+- `netstat -r` : Affiche la table de routage du noyau. Ceci possède le même fonctionnement de base que la commande `route`
 - `netstat -i`: Affiche les statistiques d'interface réseau.
 
 ## Notice: pour les curieux 
