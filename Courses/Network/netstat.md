@@ -6,7 +6,7 @@ Parlons un peu de cet utilitaire en ligne de commande, pratique pour explorer et
 ## Quelques notions
 
 - **netstat** est une abréviation du **network statistics**
-- A ma compréhension, netstat permet de surveiller les ports réseaux: il montre les ports ouverts, les paquets entrants et sortants dans votre machine et aussi la destination des données transitant par les ports.
+- À ma compréhension, netstat permet de surveiller les ports réseaux: il montre les ports ouverts, les paquets entrants et sortants dans votre machine et aussi la destination des données transitant par les ports.
 - Il affiche des informations sur les **connexions réseau**, **les tables de routage**, **les statistiques d'interface** (Ethernet, Wi-Fi, etc.), les **connexions de protocole réseau** (TCP, UDP, ICMP, etc.) et les **sockets réseau**.
 
 ## Utilisation
