@@ -1,8 +1,7 @@
 ## MYSQL Server - Server Hosting
 
 Rendre la base de données MySQL dans un serveur sous Linux accessible à des clients.
-Les clients et le serveur doivent être connectés au même réseau (De préference local)
-
+Les clients et le serveur doivent être connectés au même réseau (de préférence en local)
 ## Vérifier du service actif
 
 Vérifier d'abord le type de service actif dans votre machine: **mariadb** ou **mysql** 
