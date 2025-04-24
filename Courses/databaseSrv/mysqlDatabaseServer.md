@@ -1,6 +1,6 @@
 ## MYSQL Server - Server Hosting
 
-Rendre la base de données MSQL dans un serveur sous Linux accessible à des clients.
+Rendre la base de données MySQL dans un serveur sous Linux accessible à des clients.
 Les clients et le serveur doivent être connectés au même réseau (De préference local)
 
 ## Vérifier du service actif
