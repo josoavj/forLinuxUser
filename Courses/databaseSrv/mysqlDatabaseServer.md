@@ -31,8 +31,7 @@ Vérifier d'abord le type de service actif dans votre machine: **mariadb** ou **
   - `sudo ufw enable`
 - Ou via **firewalld**:
   - `sudo firewalld-cmd --permanent --add-port=3306/tcp`
-  - `sudo firewall-cm --reload`
-
+  - `sudo firewall-cmd --reload`
 ## Tester la connexion
 
 - Lancer dans le client: `mysql -h 127.0.0.1 -u username -p`
