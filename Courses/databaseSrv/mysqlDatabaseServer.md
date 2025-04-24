@@ -18,7 +18,7 @@ Vérifier d'abord le type de service actif dans votre machine: **mariadb** ou **
 - Entrer dans mariabd: `sudo mariadb`
 - Executez les commandes suivantes:
   - `~ CREATE USER 'username'@'%' IDENTIFIED BY 'password'`
-  - `~ GRANT ALL PRIVILEGES ON Votre_bd.* TO 'username@'%'; FLUSH PRIVILEGES;`
+  - `~ GRANT ALL PRIVILEGES ON Votre_bd.* TO 'username'@'%'; FLUSH PRIVILEGES;`
   - Cela permet de créer un utilisateur pour la connexion à distance vers le serveur.
   - Vérifier si l'utilisateur est ajouté: `SELECT Host, USER FROM mysql.user;`
   - Vous devez voir une ligne comme `% | username`
