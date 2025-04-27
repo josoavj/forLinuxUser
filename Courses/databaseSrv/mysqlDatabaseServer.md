@@ -44,7 +44,7 @@ Vérifier d'abord le type de service actif dans votre machine: **mariadb** ou **
 - Vous pouvez lier votre base de données partagée avec vos projets, l'initiation de la connexion mentionnera l'adresse IP de l'hote au lieu de localhost.
 - Exemple:
   ```
-       host= "192;168.1.10",                            # Adresse IP du serveur 
+       host= "192.168.1.10",                            # Adresse IP du serveur 
        port= 3306,                                      # Port pour la connexion, 3306 est le port par défaut
        user= "Votre nom d'utilisateur",                 
        password= "Mot de passe",
