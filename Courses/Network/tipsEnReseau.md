@@ -3,7 +3,7 @@
 ### Useful tips: 
    
 - Obtenir l'adresse IP d'un site: dig nom_site   
-- Ensuite executer nmap +IP+
+- Ensuite exécuter nmap +IP+
 
 
 ### Adresse IP (Internet Protocol)
