@@ -89,7 +89,7 @@ Cette notation vous indique combien des 32 bits de l'adresse IP sont utilisés p
 
 ## Routage 
 
-- Redirection de deux paquets entre deux réseaux (Liaison entre deux réseaux différentes
+- Redirection de deux paquets entre deux réseaux (Liaison entre deux réseaux différents)
 - **Prerouting:** Avant Routage
 - **Postrouting:** Après Routage
   - Exemple: 
