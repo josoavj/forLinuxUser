@@ -8,7 +8,7 @@ Il me permet de facilement extraire (télécharger xD) du contenu multimédia (v
 - Vous pouvez l'installer dans votre distribution (Arch Based) directement dans **Octopi** ou aussi directement dans votre terminal.
 - Pour l'utilisation, il suffit de copier le lien du contenu multimédia que vous souhaitez télécharger et de procéder comme suit:
   - `yt-dlp lien_du_fichier`
-- Plusieurs options et configurations sont possible, selon vos préferences. Comme la qualité par défaut et aussi le format de la vidéo. Vous pouvez trouver (ou créer s'il est absent) le fichier de configuration dans: 
+- Plusieurs options et configurations sont possibles, selon vos préférences. Comme la qualité par défaut et aussi le format de la vidéo. Vous pouvez trouver (ou créer s'il est absent) le fichier de configuration dans: 
   - `/etc/yt-dlp.conf`: pour une configuration globale. 
   - `~/.config/yt-dlp/config`: pour une configuration spécifique et uniquement à l'utilisateur actuel.
 
