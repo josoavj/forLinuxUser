@@ -16,5 +16,5 @@
 ## How to rename a file or a folder 
 
 - File & Folder: `mv atcual_name new_name`
-
+- There's another tutorial with the copy move and paste 
 
