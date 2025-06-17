@@ -18,7 +18,7 @@
   - [AstroNvim](https://astronvim.com/)
   - [LunarVim](https://www.lunarvim.org/)
   - [NVChad](https://nvchad.com/)
-  - 
+
 - Ces configurations possèdent leurs propres thèmes.
 
 ### Thèmes 
