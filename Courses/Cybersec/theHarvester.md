@@ -76,9 +76,9 @@ theharvester -d <domaine_cible> -b <source_de_données> [options]
 **Exemple d'utilisation :**
 
 ```bash
-theharvester -d example.com -b google,linkedin,crtsh -l 500 -f example_recon.html
+theharvester -d site.com -b google,linkedin,crtsh -l 500 -f site_info.html
 ```
 
-Cette commande recherchera des informations sur `example.com` en utilisant Google, LinkedIn et crt.sh, limitera les résultats à 500 par source, et sauvegardera le tout dans un fichier HTML nommé `example_recon.html`.
+Cette commande recherchera des informations sur `site.com` en utilisant Google, LinkedIn et crt.sh, limitera les résultats à 500 par source, et sauvegardera le tout dans un fichier HTML nommé `site_info.html`.
 
 
