@@ -31,7 +31,7 @@ Ce mode est utile pour effectuer plusieurs requêtes successives ou pour modifie
 Pour démarrer le mode interactif, ouvrez votre terminal ou invite de commande et tapez simplement :
 
 ```bash
-    nslookup
+  nslookup
 ```
 
 Vous verrez alors une invite de commande `>` indiquant que vous êtes en mode interactif.
@@ -78,9 +78,30 @@ Ce mode est parfait pour des requêtes rapides et uniques, ou pour intégrer nsl
 
 ### Syntaxe générale
 
+La syntaxe générale pour l'utilisation de nslookup est le suivant: 
 ```Bash
-    nslookup [options] [nom_domaine_ou_ip] [serveur_dns_a_interroger]
+  nslookup [options] [nom_domaine_ou_ip] [serveur_dns_a_interroger]
 ```
+
 - **[options] :** Permettent de spécifier le type de requête (-type=), le mode de débogage (-debug), etc.
 - **[nom_domaine_ou_ip] :** Le nom de domaine (ex: example.com) ou l'adresse IP (ex: 192.0.2.1) à interroger.
 - **[serveur_dns_a_interroger] :** (Optionnel) L'adresse IP d'un serveur DNS spécifique que vous souhaitez utiliser pour la requête, au lieu de celui configuré par défaut sur votre système.
+
+Les options de `nslookup` vous permettent de contrôler le comportement de l'outil et de spécifier le type d'informations DNS que vous souhaitez récupérer.
+
+### Options Fréquemment Utilisées
+
+Voici une liste des options les plus courantes et leur explication :
+
+| Option (Mode non-interactif) | Option (Mode interactif) | Description                                                                                                                                                                                                                                                                                                                        |
+| :--------------------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-type=<type_enregistrement>` | `set type=<type_enregistrement>` | Spécifie le **type d'enregistrement DNS** à rechercher. C'est l'option la plus utilisée pour obtenir des informations spécifiques au-delà des simples adresses IP (A/AAAA). <br><br> **Types courants :** <br> - `A` : Adresse IPv4. <br> - `AAAA` : Adresse IPv6. <br> - `MX` : Enregistrements de serveurs de messagerie (Mail Exchange). <br> - `NS` : Enregistrements de serveurs de noms (Name Server). <br> - `TXT` : Enregistrements texte (souvent utilisés pour SPF, DKIM, vérification de domaine). <br> - `CNAME` : Nom canonique (alias). <br> - `PTR` : Pointeur (pour les recherches DNS inversées, IP vers nom). <br> - `SOA` : Start of Authority (informations sur la zone DNS). <br> - `SRV` : Service (pour des services spécifiques comme la VoIP). <br> - `ANY` : Retourne tous les types d'enregistrements disponibles (peut être très verbeux). |
+| `[aucun]` / `[serveur_ip]` | `server [serveur_ip]`    | **Spécifie le serveur DNS à interroger.** Si aucune adresse IP n'est fournie, `nslookup` utilise le serveur DNS par défaut configuré sur votre système (généralement celui de votre FAI ou de votre réseau local). Si une adresse IP est donnée, `nslookup` interrogera ce serveur spécifique.                                                                                 |
+| `-debug`                     | `set debug`              | **Active le mode de débogage.** Cela affiche des informations beaucoup plus détaillées sur le processus de requête DNS, y compris les paquets envoyés et reçus, les délais, et les réponses intermédiaires. Très utile pour diagnostiquer des problèmes complexes.                                                                                                                                    |
+| `-timeout=<secondes>`        | `set timeout=<secondes>` | **Définit la durée maximale (en secondes) pendant laquelle `nslookup` attendra une réponse du serveur DNS** avant de considérer la requête comme échouée. Utile si vous avez des problèmes de latence ou des serveurs lents.                                                                                                                                     |
+| `-retry=<nombre>`            | `set retry=<nombre>`     | **Spécifie le nombre de tentatives** que `nslookup` effectuera si le serveur DNS ne répond pas dans le délai imparti.                                                                                                                                                                                                                                        |
+| `-vc`                        | `set vc`                 | **Force l'utilisation d'une connexion TCP (Virtual Circuit)** au lieu d'UDP pour la requête DNS. Par défaut, `nslookup` utilise UDP pour les requêtes standard, mais passe au TCP pour les réponses de grande taille. Forcer le TCP peut être utile pour le dépannage de problèmes de fragmentation UDP ou de grandes réponses DNS (ex: de nombreux enregistrements TXT). |
+| `-port=<num_port>`           | `set port=<num_port>`    | **Spécifie un port UDP/TCP différent de 53** pour envoyer les requêtes DNS. Le port 53 est le port standard pour le DNS. Cette option est rarement utilisée, sauf dans des configurations réseau très spécifiques ou pour tester des services DNS sur des ports non-standards.                                                                                                      |
+| `-nodefsearch`               | `set nodefsearch`        | **Désactive la recherche de nom de domaine par défaut.** Normalement, si vous entrez un nom de domaine sans point (ex: `serveur`), `nslookup` tentera d'ajouter votre suffixe DNS par défaut (ex: `serveur.mondomaine.local`). Cette option empêche ce comportement. Utile lorsque vous voulez interroger des noms exacts sans suffixe.                                 |
+| `-norecurse`                 | `set norecurse`          | **Demande au serveur DNS de ne pas effectuer de résolution récursive.** Le serveur interrogé ne cherchera pas la réponse auprès d'autres serveurs s'il ne la possède pas directement. Il ne donnera qu'une réponse qu'il connaît déjà (en cache ou autoritaire) ou un renvoi vers un autre serveur (délégation). Utile pour tester des serveurs DNS spécifiques. |
+| `-domain=<nom_domaine>`      | `set domain=<nom_domaine>` | **Définit le domaine par défaut** qui sera ajouté aux requêtes si le nom n'est pas un nom de domaine pleinement qualifié (FQDN). Similaire à la liste de recherche de domaine.                                                                                                                                                                             |
