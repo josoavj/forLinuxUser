@@ -98,7 +98,7 @@ Voici une liste des options les plus courantes et leur explication :
 
 ---
 
-### Intérpretation des résultats obtenues
+### Interprétation des résultats obtenus
 
 ```bash
   > nslookup website.com
