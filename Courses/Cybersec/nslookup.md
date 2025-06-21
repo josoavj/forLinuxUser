@@ -123,7 +123,7 @@ C'est la partie la plus importante, car elle contient les informations DNS que v
 
 ##### Types de Réponses
 
-En géneral, les réponses se présentent souvent en deux types (souvent indiqués par un message) :
+En général, les réponses se présentent souvent en deux types (souvent indiqués par un message) :
 
 * **`Non-authoritative answer:` (Réponse non-autoritaire) :**
     * **Signification :** Cela signifie que le serveur DNS qui vous a fourni la réponse n'est **pas** le serveur officiel (autoritaire) pour le domaine que vous avez interrogé. Le serveur a trouvé l'information dans son **cache** (une copie temporaire des réponses précédentes) ou l'a obtenue d'un autre serveur DNS qui, lui, était autoritaire.
