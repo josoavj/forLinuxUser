@@ -6,16 +6,6 @@ Bien que d'autres outils comme `dig` soient souvent préférés par les administ
 
 ---
 
-# Pour voir des informations sur un domaine
-
-nslookup website.com
-Server:		192.168.1.1 (Adresse IP de votre routeur)
-Address:	192.168.1.1#53 (53: Port d'accès du DNS où on a obtenu cela)
-
-Non-authoritative answer:
-Name:	website.com (Domaine)
-Address: 193.46.243.185 (Adresse IP du domaine)
-
 # nslookup : Modes de Fonctionnement et Interprétation Basique
 
 `nslookup` (name server lookup) est un outil en ligne de commande essentiel pour interroger le **DNS** (Domain Name System). Il permet de résoudre des noms de domaine en adresses IP et inversement. Il fonctionne principalement selon deux modes.
@@ -105,3 +95,40 @@ Voici une liste des options les plus courantes et leur explication :
 | `-nodefsearch`               | `set nodefsearch`        | **Désactive la recherche de nom de domaine par défaut.** Normalement, si vous entrez un nom de domaine sans point (ex: `serveur`), `nslookup` tentera d'ajouter votre suffixe DNS par défaut (ex: `serveur.mondomaine.local`). Cette option empêche ce comportement. Utile lorsque vous voulez interroger des noms exacts sans suffixe.                                 |
 | `-norecurse`                 | `set norecurse`          | **Demande au serveur DNS de ne pas effectuer de résolution récursive.** Le serveur interrogé ne cherchera pas la réponse auprès d'autres serveurs s'il ne la possède pas directement. Il ne donnera qu'une réponse qu'il connaît déjà (en cache ou autoritaire) ou un renvoi vers un autre serveur (délégation). Utile pour tester des serveurs DNS spécifiques. |
 | `-domain=<nom_domaine>`      | `set domain=<nom_domaine>` | **Définit le domaine par défaut** qui sera ajouté aux requêtes si le nom n'est pas un nom de domaine pleinement qualifié (FQDN). Similaire à la liste de recherche de domaine.                                                                                                                                                                             |
+
+---
+
+### Intérpretation des résultats obtenues
+
+```bash
+  > nslookup website.com
+  Server:		192.168.1.1 (Adresse IP de votre routeur)
+  Address:	192.168.1.1#53 (53: Port d'accès du DNS où on a obtenu cela)
+
+  Non-authoritative answer:
+  Name:	website.com (Domaine)
+  Address: 193.46.243.185 (Adresse IP du domaine)
+```
+
+#### 1. La Section "Serveur"
+
+C'est la première partie de la sortie et elle identifie le serveur DNS que `nslookup` a utilisé pour effectuer la requête.
+* **`Server:`** : C'est le nom d'hôte (si disponible) du serveur DNS qui a traité votre requête. Il s'agit souvent de votre routeur local, du serveur DNS de votre Fournisseur d'Accès Internet (FAI), ou d'un serveur DNS public (comme Google DNS 8.8.8.8 si vous l'avez configuré).
+* **`Address:`** : C'est l'adresse IP de ce même serveur DNS, suivie du port UDP utilisé pour les requêtes DNS (le port 53 par défaut, d'où le `#53`).
+- **NB :** Vous pouvez vérifier l'adresse de votre routeur avec `route` ou aussi `netstat -nr`.
+
+#### 2. La Section "Réponse"
+
+C'est la partie la plus importante, car elle contient les informations DNS que vous avez demandées.
+
+##### Types de Réponses
+
+En géneral, les réponses se présentent souvent en deux types (souvent indiqués par un message) :
+
+* **`Non-authoritative answer:` (Réponse non-autoritaire) :**
+    * **Signification :** Cela signifie que le serveur DNS qui vous a fourni la réponse n'est **pas** le serveur officiel (autoritaire) pour le domaine que vous avez interrogé. Le serveur a trouvé l'information dans son **cache** (une copie temporaire des réponses précédentes) ou l'a obtenue d'un autre serveur DNS qui, lui, était autoritaire.
+    * **Qu'en penser ?** C'est la réponse la plus courante et souvent suffisante. Elle indique que l'information est valide, mais elle pourrait être légèrement obsolète si le cache n'a pas encore expiré et que l'enregistrement a été mis à jour récemment sur les serveurs autoritaires.
+
+* **`Authoritative answer:` (Réponse autoritaire) :**
+    * **Signification :** Cette réponse provient directement du serveur DNS qui est désigné comme l'autorité pour le domaine en question. Cela signifie que l'information est la plus à jour et la plus fiable disponible.
+    * **Quand l'obtient-on ?** Vous l'obtenez généralement lorsque vous interrogez directement l'un des serveurs de noms (NS) autoritaires pour un domaine, ou si votre résolveur récursif a obtenu l'information directement de ce serveur autoritaire et n'avait pas d'information en cache.
