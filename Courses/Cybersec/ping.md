@@ -74,7 +74,7 @@ Comprendre ce que `ping` vous dit est la clé du diagnostic. Voici les messages 
 
 ## Ping dans le Hacking
 
-Ping est un outil de reconnaissance et nous permet de récuperer des informations utiles.
+Ping est un outil de reconnaissance et nous permet de récupérer des informations utiles.
 
 ### 1. Détection d'hôtes actifs (Host Discovery) :
 ping est souvent la première étape pour un attaquant afin de découvrir quels appareils (ordinateurs, serveurs, routeurs, etc.) sont connectés et actifs sur un réseau cible. En envoyant un ping à une plage d'adresses IP, l'attaquant peut identifier les hôtes qui répondent, ce qui lui donne une idée de la topologie du réseau et des cibles potentielles.
