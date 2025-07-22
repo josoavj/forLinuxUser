@@ -1,8 +1,18 @@
-# forLinuxUser
+<h1 align="center">for Linux User</h1>
+
+<p align="center">
+  <strong>Dépot contenant des fichier de customisation de mon environnement Linux ou aussi des petits tutoriels variés sous Linux</strong>
+</p>
+
+<p align="center">
+  <!-- Badges -->
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  <img src="https://img.shields.io/github/last-commit/josoavj/forLinuxUser" alt="Last Commit">
+  <img src="https://img.shields.io/github/stars/josoavj/forLinuxUser?style=social" alt="GitHub Stars">
+</p>
 
 ## About
 
-- **Type:** Dépot contenant des fichier de configuration et customisation de mon environnement Linux ou aussi des petits tutoriels variés sous Linux
 - **Contenu:** Texte simple ou au format MarkDown
 - **Auteur:** [josoavj](https://github.com/josoavj)
 
