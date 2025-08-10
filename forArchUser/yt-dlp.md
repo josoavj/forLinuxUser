@@ -1,19 +1,57 @@
 # yt-dlp
 
-En cherchant de nouvelles alternatives sur le téléchargement de vidéos YouTube, je suis tombé sur cet outil **yt-dlp**
-Il me permet de facilement extraire (télécharger xD) du contenu multimédia (vidéos et audio) de plus d'un millier de sites internet, directement depuis mon terminal.
+En explorant des alternatives pour le téléchargement de vidéos YouTube, je suis tombé sur **yt-dlp**, un outil puissant et flexible.
+Il permet d’extraire facilement du contenu multimédia (vidéos et audio) de plus d’un millier de sites web, directement depuis le terminal.
 
-## Installation et utilisation
+## Installation
 
-- Vous pouvez l'installer dans votre distribution (Arch Based) directement dans **Octopi** ou aussi directement dans votre terminal.
-- Pour l'utilisation, il suffit de copier le lien du contenu multimédia que vous souhaitez télécharger et de procéder comme suit:
-  - `yt-dlp lien_du_fichier`
-- Plusieurs options et configurations sont possibles, selon vos préférences. Comme la qualité par défaut et aussi le format de la vidéo. Vous pouvez trouver (ou créer s'il est absent) le fichier de configuration dans: 
-  - `/etc/yt-dlp.conf`: pour une configuration globale. 
-  - `~/.config/yt-dlp/config`: pour une configuration spécifique et uniquement à l'utilisateur actuel.
+* Sur les distributions basées sur Arch Linux, vous pouvez installer **yt-dlp** via Octopi ou directement en ligne de commande :
 
-### Documentation sur yt-dlp
+```bash
+sudo pacman -S yt-dlp
+```
 
-- La liste des sites supportés par cet outil sont dans [yt-dlp supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
-- Le dépôt GitHub: [yt-dlp](https://github.com/yt-dlp)
-- Vous pouvez consulter la documentation officielle dans [yt-dlp wiki](https://wiki.archlinux.org/title/Yt-dlp)
+* Pour d’autres distributions, il est possible d’installer via `pip` :
+
+```bash
+python3 -m pip install --upgrade yt-dlp
+```
+
+* Vous pouvez aussi télécharger l’exécutable directement depuis le dépôt officiel.
+
+## Utilisation de base
+
+L’utilisation est simple : il suffit de copier l’URL de la vidéo ou du contenu multimédia que vous souhaitez télécharger, puis d’exécuter la commande suivante :
+
+```bash
+yt-dlp URL_du_contenu
+```
+
+Par défaut, yt-dlp télécharge la meilleure qualité disponible.
+
+## Personnalisation et configuration
+
+Vous pouvez adapter yt-dlp à vos besoins grâce à un fichier de configuration. Celui-ci peut contenir des options par défaut telles que le format de la vidéo, la qualité, ou encore le répertoire de téléchargement.
+
+Les emplacements habituels du fichier de configuration sont :
+
+* `/etc/yt-dlp.conf` : configuration globale, valable pour tous les utilisateurs.
+* `~/.config/yt-dlp/config` : configuration spécifique à l’utilisateur courant.
+
+Si ces fichiers n’existent pas, vous pouvez les créer et y ajouter vos options personnalisées. Par exemple :
+
+```text
+# Exemple de configuration pour télécharger la meilleure qualité vidéo + audio fusionnée
+-f bestvideo+bestaudio
+-o ~/Téléchargements/%(title)s.%(ext)s
+```
+
+## Documentation et ressources utiles
+
+* Liste complète des sites supportés par yt-dlp :
+  [yt-dlp supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+* Dépôt officiel GitHub :
+  [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+* Documentation complète et guide d’utilisation sur Arch Wiki :
+  [yt-dlp - ArchWiki](https://wiki.archlinux.org/title/Yt-dlp)
+
