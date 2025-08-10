@@ -1,20 +1,96 @@
-### En cas de problème sur la détection du pilote wifi intel
+# 📡 Dépannage – Pilote Wi-Fi Intel (**iwlwifi**)
 
-- Pour intel, le pilote est **iwlwifi**
-- Vérifier dans les messages du kernel si le pilote est présent: `sudo dmesg | grep iwlwifi`
-  - **dmesg** est une commande qui affiche le tampon de messages du noyau (kernel ring buffer). 
-  Ce tampon contient des informations sur l'activité du noyau, y compris les messages de démarrage, les erreurs matérielles et les informations sur les pilotes de périphériques.
-  - **sudo** est utilisé car la lecture du tampon de messages du noyau nécessite des privilèges d'administrateur.
-- Si jamais il y a un problème détecté, réferer aux forums 
-- Si jamais le firmware wifi est absent dans votre système et qu'il est mentionné dans les messages
-  - Executer cette commande pour le télegcharger: `sudo wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/iwlwifi-version-spécifié.ucode -P /lib/firmware`
-  - Cette commande permet de télecharger directement le firmware spécifié dans `/lib/firmware` (Librairie des firmwares)
-  - Execution en tant que superutilisateur requis car la permission d'écriture dans `/lib/firmware` est réservé uniquement à ceux là
-  - Ensuite, recharger le module wifi: `sudo modprobe -r iwlwifi`
-    -  - Cette commande est utilisée pour charger le module du noyau **iwlwifi**
-    - **modprobe** est une commande qui charge ou décharge des modules du noyau
-  - Puis: `sudo modprobe iwlwifi`
-  - Rédemarrer le gestionnaire réseau pour activer le Wifi: `sudo systemctl restart NetworkManager`
-  - Vérifier si le firmware est bien chargé: `sudo dmesg | grep iwlwifi`
-  - Vérifier dans la liste des interfaces: `ip link show`
-   
+> **ℹ️ À savoir :** Le pilote officiel pour les cartes Wi-Fi **Intel** sous Linux est `iwlwifi`.  
+> Cette fiche explique comment le diagnostiquer, installer le firmware si nécessaire et le recharger.
+
+---
+
+## 1️⃣ Vérifier si le pilote est détecté par le noyau
+```bash
+sudo dmesg | grep iwlwifi
+````
+
+💡 **Astuce** :
+
+* `dmesg` → Affiche le *kernel ring buffer* (messages internes du noyau).
+* `sudo` → Permet d’afficher tous les messages, y compris ceux réservés à l’administrateur.
+
+⚠ **Si aucun message n’apparaît** → Le pilote n’est peut-être pas installé ou reconnu.
+
+---
+
+## 2️⃣ En cas de problème ou de firmware manquant
+
+🔍 Dans la sortie de `dmesg`, cherchez :
+
+```
+firmware: failed to load iwlwifi-xxxx-xx.ucode
+```
+
+ou
+
+```
+iwlwifi: unable to load firmware
+```
+
+📥 **Télécharger le firmware correspondant** :
+
+```bash
+sudo wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/iwlwifi-<version>.ucode -P /lib/firmware
+```
+
+* `-P /lib/firmware` → Enregistre directement dans le dossier système des firmwares.
+* **Permissions root requises**.
+
+💡 **Remplacez `<version>`** par la version exacte indiquée dans le message d’erreur.
+*Exemple : `iwlwifi-8265-36.ucode`*
+
+---
+
+## 3️⃣ Recharger le module Wi-Fi
+
+```bash
+sudo modprobe -r iwlwifi    # Décharge le module
+sudo modprobe iwlwifi       # Recharge le module
+```
+
+📌 **Note** :
+
+* `modprobe` gère le chargement/déchargement des modules du noyau.
+* L’option `-r` retire le module avant rechargement.
+
+---
+
+## 4️⃣ Redémarrer le gestionnaire réseau
+
+```bash
+sudo systemctl restart NetworkManager
+```
+
+Cela force la redétection et la réinitialisation du Wi-Fi.
+
+---
+
+## 5️⃣ Vérifications finales
+
+1. **Firmware chargé** :
+
+```bash
+sudo dmesg | grep iwlwifi
+```
+
+2. **Interfaces réseau disponibles** :
+
+```bash
+ip link show
+```
+
+✅ Si votre carte Wi-Fi apparaît, le pilote est fonctionnel.
+
+---
+
+## 📎 Ressources utiles
+
+* [📄 Documentation officielle iwlwifi (Intel)](https://wireless.wiki.kernel.org/en/users/drivers/iwlwifi)
+* [💾 Dépôt officiel Linux Firmware](https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git)
+
