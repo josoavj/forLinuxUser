@@ -8,7 +8,6 @@
 ## 1️⃣ Vérifier si le pilote est détecté par le noyau
 ```bash
 sudo dmesg | grep iwlwifi
-````
 
 💡 **Astuce** :
 
