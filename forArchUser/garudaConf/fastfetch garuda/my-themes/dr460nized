@@ -1,6 +1,0 @@
---kitty /usr/share/icons/garuda/dr460nized-fastfetch.png
---logo-width 35
---structure Title:Separator:OS:Host:Bios:Kernel:DE:Break:Uptime:Battery:Break:Terminal:CPU:GPU:Memory:Disk:Break:Colors
---host-format "{/2}{-}{/}{2}{?3} {3}{?}"
---battery-format "{/4}{-}{/}{4}%{?5} [{5}]{?}"
---gpu-key "GPU"
