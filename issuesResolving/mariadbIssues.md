@@ -45,7 +45,7 @@ sudo ls -ld /var/lib/mysql /var/log/mysql
 * Le propriétaire et groupe doivent être `mysql:mysql`.
 * Les permissions doivent permettre à MariaDB d’écrire et de lire.
 
-2. **Réparer les permissions et le propriétaire**
+1. **Réparer les permissions et le propriétaire**
 
 ```bash
 sudo chown -R mysql:mysql /var/lib/mysql /var/log/mysql
@@ -54,19 +54,19 @@ sudo chmod -R 750 /var/lib/mysql /var/log/mysql
 
 * `-R` agit récursivement sur tous les fichiers et sous-dossiers.
 
-3. **Vérifier que MariaDB est bien arrêté avant ces modifications**
+1. **Vérifier que MariaDB est bien arrêté avant ces modifications**
 
 ```bash
 sudo systemctl stop mariadb
 ```
 
-4. **Redémarrer MariaDB**
+1. **Redémarrer MariaDB**
 
 ```bash
 sudo systemctl start mariadb
 ```
 
-5. **Vérifier le statut**
+1. **Vérifier le statut**
 
 ```bash
 sudo systemctl status mariadb
@@ -95,6 +95,7 @@ sudo journalctl -u mariadb
     ```bash
     sudo setenforce 0
     ```
+
   * Pour AppArmor : consultez les profils et désactivez temporairement.
 
 * Vérifiez que le système de fichiers n’est pas monté en lecture seule :
@@ -116,4 +117,3 @@ sudo tail -f /var/log/mysql/error.log
 ```
 
 * Sur certains systèmes, les logs peuvent se trouver ailleurs, vérifiez la config MariaDB (`my.cnf`).
-
