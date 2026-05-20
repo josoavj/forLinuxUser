@@ -15,21 +15,23 @@
 
 - **Contenu:** Texte simple ou au format MarkDown
 - **Auteur:** [josoavj](https://github.com/josoavj)
+- **Entree doc:** docs/index.md
 
 ## 📂 Structuration des dossiers
 
 ```
 forLinuxUser/
-├── Courses                             # Pour les divers tutoriels de programme ou outils sur les distro Linux
-    ├── Cybersec                        # Pour les tutos ou simple docs sur la cybersécurité 
-    ├── Network                         # Pour les tutos simples des outils ou commande utiles en Networking
-    ├── DatabaseSrv                     # Pour les bases de données dans les distributions Linux (En particulier ceux basés sur Arch Linux)
-    ├── general                         # Des docs ou tutos sur des commandes ou outils sous les distro Linux
-    ├── gitTutorial                     # Tutoriel Git (& GitHub)
-    └── tools                           # Outils utiles pour les distro Linux
-├── forArchUser                         # Pour les utilisateurs utilisant un distro basé sur Arch Linux
-    └── garudaConf                      # Configuration des outils ou extensions sous Garuda Linux
-├── generalKnowledge                    # Connaissance générale
-├── issuesResolving                     # Pour des petits tutos sur la résolution de problèmes courants ou spécifiques sur les distro Linux
-└── README.md                           # Documentation
+├── README.md                           # Documentation generale
+├── docs/                               # Documentation organisee par theme et usage
+│   ├── topics/                          # Topics principaux (cybersecurity, networking, databases, etc.)
+│   ├── troubleshooting/                # Resolution de problemes
+│   ├── knowledge/                       # Connaissances generales
+│   └── distros/                         # Notes et specificites par distro
+│       └── arch/
+│           └── garuda/
+│               └── notes/
+└── configs/                             # Fichiers de configuration
+  └── garuda/
+    └── fastfetch/
+      └── themes/
 ```
