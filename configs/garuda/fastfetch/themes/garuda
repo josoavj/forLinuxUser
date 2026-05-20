@@ -1,0 +1,6 @@
+--kitty /usr/share/icons/garuda/garuda-blue-FK.png
+--logo-width 35
+--structure Title:Separator:OS:Host:Bios:Kernel:Break:Uptime:Battery:Break:Shell:Terminal:Break:CPU:GPU:Memory:Disk:Colors
+--host-format "{/2}{-}{/}{2}{?3} {3}{?}"
+--battery-format "{/4}{-}{/}{4}%{?5} [{5}]{?}"
+--gpu-key "GPU"
