@@ -330,6 +330,10 @@ _trunc() {
   fi
 }
 
+is_small_terminal() {
+  (( TERM_ROWS < 22 || TERM_COLS < 70 ))
+}
+
 # Status bar at bottom
 _strip_ansi() {
   sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g'
@@ -394,23 +398,53 @@ _section() {
 _format_pkg_line() {
   local idx=$1
   local name="$2"
-  local cur="$3"
-  local new="$4"
-  local type="$5"
+  local type="$3"
 
   local type_tag="${type:-normal}"
   if [[ "$type_tag" == *security* ]]; then
-    type_tag="${FG_RED}sec${RESET}"
+    type_tag="sec"
   else
-    type_tag="${FG_CYAN}std${RESET}"
+    type_tag="std"
   fi
 
-  printf '[%d] %s %s%s%s %s%s%s %s' \
+  printf '[%d] %s %s' \
     "$((idx + 1))" \
-    "${FG_WHITE}${name}${RESET}" \
-    "${DIM}" "${cur}" "${RESET}" \
-    "${FG_GREEN}" "${new}" "${RESET}" \
+    "$name" \
     "$type_tag"
+}
+
+_draw_single_column_list() {
+  local -n pkgs=$1
+  local -n types=$2
+  local -n sel_ref=$3
+  local highlight="${4:-}"
+  local start="${5:-0}"
+  local max_rows="${6:-9999}"
+
+  local total=${#pkgs[@]}
+  if (( total == 0 )); then
+    echo "  ${FG_YELLOW}$(msg no_packages)${RESET}"
+    return 0
+  fi
+
+  local end=$(( start + max_rows ))
+  (( end > total )) && end=$total
+
+  local i
+  for (( i=start; i<end; i++ )); do
+    local cursor_mark=" "
+    local sel_mark=" "
+    if (( i == highlight )); then
+      cursor_mark=">"
+    fi
+    if [[ "${sel_ref[$i]:-}" == "1" ]]; then
+      sel_mark="*"
+    fi
+    local text
+    text=$(_format_pkg_line "$i" "${pkgs[$i]}" "${types[$i]:-normal}")
+    printf '  %s %s %s\n' "$cursor_mark" "$sel_mark" "$text"
+  done
+  echo
 }
 
 _draw_two_column_list() {
@@ -431,7 +465,10 @@ _draw_two_column_list() {
 
   local gutter=4
   local col_width=$(( (TERM_COLS - gutter - 4) / 2 ))
-  (( col_width < 24 )) && col_width=24
+  if (( TERM_COLS < 70 || col_width < 28 )); then
+    _draw_single_column_list pkgs types sel_ref "$highlight" "$start" "$max_rows"
+    return 0
+  fi
 
   local end=$(( start + max_rows ))
   (( end > total )) && end=$total
@@ -443,44 +480,40 @@ _draw_two_column_list() {
 
     local left_text=""
     local right_text=""
-    local left_prefix="" left_suffix=""
-    local right_prefix="" right_suffix=""
 
     if (( left_index < total )); then
-      left_text=$(_format_pkg_line "$left_index" "${pkgs[$left_index]}" \
-        "${curs[$left_index]:-?}" "${news[$left_index]:-?}" "${types[$left_index]:-normal}")
-      if [[ "${sel_ref[$left_index]:-}" == "1" ]]; then
-        left_text="${FG_GREEN}✓${RESET} ${left_text}"
-      else
-        left_text="  ${left_text}"
-      fi
+      local cursor_mark=" "
+      local sel_mark=" "
       if (( left_index == highlight )); then
-        left_prefix="${REVERSE}"; left_suffix="${RESET}"
+        cursor_mark=">"
       fi
+      if [[ "${sel_ref[$left_index]:-}" == "1" ]]; then
+        sel_mark="*"
+      fi
+      left_text=$(_format_pkg_line "$left_index" "${pkgs[$left_index]}" "${types[$left_index]:-normal}")
+      left_text="${cursor_mark} ${sel_mark} ${left_text}"
     fi
 
     if (( right_index < total )); then
-      right_text=$(_format_pkg_line "$right_index" "${pkgs[$right_index]}" \
-        "${curs[$right_index]:-?}" "${news[$right_index]:-?}" "${types[$right_index]:-normal}")
-      if [[ "${sel_ref[$right_index]:-}" == "1" ]]; then
-        right_text="${FG_GREEN}✓${RESET} ${right_text}"
-      else
-        right_text="  ${right_text}"
-      fi
+      local cursor_mark_r=" "
+      local sel_mark_r=" "
       if (( right_index == highlight )); then
-        right_prefix="${REVERSE}"; right_suffix="${RESET}"
+        cursor_mark_r=">"
       fi
+      if [[ "${sel_ref[$right_index]:-}" == "1" ]]; then
+        sel_mark_r="*"
+      fi
+      right_text=$(_format_pkg_line "$right_index" "${pkgs[$right_index]}" "${types[$right_index]:-normal}")
+      right_text="${cursor_mark_r} ${sel_mark_r} ${right_text}"
     fi
 
     local left_cell=""
     local right_cell=""
     if [[ -n "$left_text" ]]; then
       left_cell=$(_trunc "$left_text" "$col_width")
-      left_cell="${left_prefix}${left_cell}${left_suffix}"
     fi
     if [[ -n "$right_text" ]]; then
       right_cell=$(_trunc "$right_text" "$col_width")
-      right_cell="${right_prefix}${right_cell}${right_suffix}"
     fi
 
     printf '  %-*s%*s%-*s\n' "$col_width" "$left_cell" "$gutter" '' "$col_width" "$right_cell"
@@ -695,6 +728,7 @@ tui_view() {
   local -n _curs=$3
   local -n _news=$4
   local -n _types=$5
+  local allow_confirm="${6:-0}"
 
   local total=${#_pkgs[@]}
   if (( total == 0 )); then
@@ -731,7 +765,11 @@ tui_view() {
     _draw_two_column_list _pkgs _curs _news _types sel_flags "$cursor" "$view_start" "$max_rows"
     _detail_block _pkgs _curs _news _types "$cursor"
 
-    _statusbar "↑↓ scroll  PgUp/PgDn page  q back"
+    if [[ "$allow_confirm" -eq 1 ]]; then
+      _statusbar "↑↓ scroll  PgUp/PgDn page  Enter continue  q back"
+    else
+      _statusbar "↑↓ scroll  PgUp/PgDn page  q back"
+    fi
 
     read_key
     local key="$KEY"
@@ -741,6 +779,13 @@ tui_view() {
       DOWN|j) (( cursor < total - 1 )) && (( cursor++ )) || cursor=0 ;;
       PAGEUP|LEFT)  cursor=$(( cursor - max_rows )); (( cursor < 0 )) && cursor=0 ;;
       PAGEDOWN|RIGHT)  cursor=$(( cursor + max_rows )); (( cursor >= total )) && cursor=$(( total - 1 )) ;;
+      $'\n'|$'\r'|'')
+        if [[ "$allow_confirm" -eq 1 ]]; then
+          stty "$old_stty" 2>/dev/null; tput cnorm 2>/dev/null
+          trap - RETURN
+          return 0
+        fi
+        ;;
       q|ESC|Q)
         stty "$old_stty" 2>/dev/null; tput cnorm 2>/dev/null
         trap - RETURN
@@ -748,6 +793,36 @@ tui_view() {
         ;;
     esac
   done
+}
+
+select_by_numbers() {
+  local -n _pkgs=$1
+  local prompt="$2"
+  local selection
+
+  SELECTED_IDX=()
+  if (( ${#_pkgs[@]} == 0 )); then
+    echo "  ${FG_YELLOW}$(msg no_packages)${RESET}"
+    return 1
+  fi
+
+  read -r -p "$prompt" selection
+  if [[ "$selection" == "q" || -z "$selection" ]]; then
+    echo "  $(msg canceled)"
+    return 1
+  fi
+
+  mapfile -t selected_indices < <(parse_selection "$selection" "${#_pkgs[@]}")
+  if (( ${#selected_indices[@]} == 0 )); then
+    echo "  $(msg no_selected)"
+    return 1
+  fi
+
+  for idx in "${selected_indices[@]}"; do
+    SELECTED_IDX+=("$((idx - 1))")
+  done
+
+  return 0
 }
 
 # ─────────────────────────────────────────────
@@ -796,17 +871,59 @@ do_select_and_upgrade() {
     echo "  ${FG_YELLOW}--dry-run-only mode active.${RESET}"; pause; return
   fi
 
-  if ! tui_select "$(msg upgradable_title)" \
-       UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES; then
-    echo "  $(msg canceled)"; pause; return
-  fi
+  while true; do
+    clear; _header
+    _section "$(msg upgradable_title)"
+    echo "  ${BOLD}1${RESET}  View details"
+    echo "  ${BOLD}2${RESET}  Select packages to upgrade"
+    echo "  ${BOLD}q${RESET}  Back"
+    echo ""
+    _statusbar "1 details  2 select  q back"
+
+    local choice
+    IFS= read -rsn1 choice
+    case "$choice" in
+      1)
+        tui_view "$(msg upgradable_title)" \
+          UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES 0
+        ;;
+      2)
+        if is_small_terminal; then
+          tui_view "$(msg upgradable_title)" \
+            UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES 1
+          clear; _header
+        else
+          clear; _header
+          _section "$(msg upgradable_title)"
+          local rows=$(( (${#UPGRADABLE[@]} + 1) / 2 ))
+          local -a empty_sel=()
+          for (( i=0; i<${#UPGRADABLE[@]}; i++ )); do empty_sel+=(""); done
+          _draw_two_column_list UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES \
+            empty_sel -1 0 "$rows"
+          echo ""
+        fi
+        if ! select_by_numbers UPGRADABLE "  $(msg select_hint)"; then
+          pause; return
+        fi
+        break
+        ;;
+      q|Q|$'\x1b')
+        return
+        ;;
+    esac
+  done
 
   local -a pkgs=()
   for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
 
   clear; _header
   echo "  ${BOLD}$(msg will_update):${RESET}"
-  for p in "${pkgs[@]}"; do echo "    ${FG_GREEN}·${RESET} $p"; done
+  for idx in "${SELECTED_IDX[@]}"; do
+    local p="${UPGRADABLE[$idx]}"
+    local cur="${UPGRADABLE_VERSIONS_CUR[$idx]:-?}"
+    local new="${UPGRADABLE_VERSIONS_NEW[$idx]:-?}"
+    echo "    ${FG_GREEN}·${RESET} $p ${DIM}${cur}${RESET} -> ${FG_GREEN}${new}${RESET}"
+  done
   echo ""
   show_size_info "${pkgs[@]}"
   echo ""
@@ -863,16 +980,59 @@ do_dry_run() {
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
 
-  if ! tui_select "$(msg upgradable_title) — dry-run" \
-       UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES; then
-    echo "  $(msg canceled)"; pause; return
-  fi
+  while true; do
+    clear; _header
+    _section "$(msg upgradable_title)"
+    echo "  ${BOLD}1${RESET}  View details"
+    echo "  ${BOLD}2${RESET}  Select packages for dry-run"
+    echo "  ${BOLD}q${RESET}  Back"
+    echo ""
+    _statusbar "1 details  2 select  q back"
+
+    local choice
+    IFS= read -rsn1 choice
+    case "$choice" in
+      1)
+        tui_view "$(msg upgradable_title) — dry-run" \
+          UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES 0
+        ;;
+      2)
+        if is_small_terminal; then
+          tui_view "$(msg upgradable_title) — dry-run" \
+            UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES 1
+          clear; _header
+        else
+          clear; _header
+          _section "$(msg upgradable_title)"
+          local rows=$(( (${#UPGRADABLE[@]} + 1) / 2 ))
+          local -a empty_sel=()
+          for (( i=0; i<${#UPGRADABLE[@]}; i++ )); do empty_sel+=(""); done
+          _draw_two_column_list UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES \
+            empty_sel -1 0 "$rows"
+          echo ""
+        fi
+        if ! select_by_numbers UPGRADABLE "  $(msg select_hint)"; then
+          pause; return
+        fi
+        break
+        ;;
+      q|Q|$'\x1b')
+        return
+        ;;
+    esac
+  done
 
   local -a pkgs=()
   for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
 
   clear; _header
-  echo "  ${BOLD}$(msg dry_run_for):${RESET} ${pkgs[*]}"
+  echo "  ${BOLD}$(msg dry_run_for):${RESET}"
+  for idx in "${SELECTED_IDX[@]}"; do
+    local p="${UPGRADABLE[$idx]}"
+    local cur="${UPGRADABLE_VERSIONS_CUR[$idx]:-?}"
+    local new="${UPGRADABLE_VERSIONS_NEW[$idx]:-?}"
+    echo "    ${FG_GREEN}·${RESET} $p ${DIM}${cur}${RESET} -> ${FG_GREEN}${new}${RESET}"
+  done
   echo ""
   ensure_sudo || { pause; return; }
   run_cmd apt-get --show-progress \
@@ -958,8 +1118,19 @@ do_view_packages() {
     return
   fi
 
-  tui_view "$(msg upgradable_title)" \
-    UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES
+  if is_small_terminal; then
+    tui_view "$(msg upgradable_title)" \
+      UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES 0
+  else
+    clear; _header
+    _section "$(msg upgradable_title)"
+    local rows=$(( (${#UPGRADABLE[@]} + 1) / 2 ))
+    local -a empty_sel=()
+    for (( i=0; i<${#UPGRADABLE[@]}; i++ )); do empty_sel+=(""); done
+    _draw_two_column_list UPGRADABLE UPGRADABLE_VERSIONS_CUR UPGRADABLE_VERSIONS_NEW UPGRADABLE_TYPES \
+      empty_sel -1 0 "$rows"
+    pause
+  fi
 }
 
 do_show_logs() {
