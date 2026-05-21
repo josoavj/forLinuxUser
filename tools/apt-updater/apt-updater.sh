@@ -418,7 +418,7 @@ _draw_two_column_list() {
   local -n curs=$2
   local -n news=$3
   local -n types=$4
-  local -n sel_flags=$5   # "1" or "" per index
+  local -n sel_ref=$5   # "1" or "" per index
   local highlight="${6:-}"
   local start="${7:-0}"
   local max_rows="${8:-9999}"
@@ -449,7 +449,7 @@ _draw_two_column_list() {
     if (( left_index < total )); then
       left_text=$(_format_pkg_line "$left_index" "${pkgs[$left_index]}" \
         "${curs[$left_index]:-?}" "${news[$left_index]:-?}" "${types[$left_index]:-normal}")
-      if [[ "${sel_flags[$left_index]:-}" == "1" ]]; then
+      if [[ "${sel_ref[$left_index]:-}" == "1" ]]; then
         left_text="${FG_GREEN}✓${RESET} ${left_text}"
       else
         left_text="  ${left_text}"
@@ -462,7 +462,7 @@ _draw_two_column_list() {
     if (( right_index < total )); then
       right_text=$(_format_pkg_line "$right_index" "${pkgs[$right_index]}" \
         "${curs[$right_index]:-?}" "${news[$right_index]:-?}" "${types[$right_index]:-normal}")
-      if [[ "${sel_flags[$right_index]:-}" == "1" ]]; then
+      if [[ "${sel_ref[$right_index]:-}" == "1" ]]; then
         right_text="${FG_GREEN}✓${RESET} ${right_text}"
       else
         right_text="  ${right_text}"
