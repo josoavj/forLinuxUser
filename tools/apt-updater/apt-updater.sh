@@ -15,6 +15,7 @@ COLUMN_WIDTH=38
 ENABLE_COLOR=1
 SHOW_BANNER=1
 SPINNER_ENABLED=1
+LANG_CHOICE="auto" # auto, en, fr
 
 if [[ "$ENABLE_COLOR" -eq 1 ]] && command -v tput >/dev/null 2>&1; then
   BOLD=$(tput bold)
@@ -37,6 +38,82 @@ fi
 UPGRADABLE=()
 LAST_REFRESH=""
 SELECTED_PACKAGES=()
+
+current_lang() {
+  if [[ "$LANG_CHOICE" == "en" || "$LANG_CHOICE" == "fr" ]]; then
+    echo "$LANG_CHOICE"
+    return 0
+  fi
+  if [[ "${LANG:-}" == fr* || "${LC_ALL:-}" == fr* || "${LC_MESSAGES:-}" == fr* ]]; then
+    echo "fr"
+  else
+    echo "en"
+  fi
+}
+
+tr() {
+  local key="$1"
+  local lang
+  lang=$(current_lang)
+
+  case "$key" in
+    banner_title) [[ "$lang" == "fr" ]] && echo "apt-updater" || echo "apt-updater" ;;
+    banner_tagline) [[ "$lang" == "fr" ]] && echo "CLI moderne pour des mises a jour selectives" || echo "Modern CLI for selective apt upgrades" ;;
+    last_refresh) [[ "$lang" == "fr" ]] && echo "Derniere verification" || echo "Last refresh" ;;
+    last_refresh_none) [[ "$lang" == "fr" ]] && echo "non effectue" || echo "not run yet" ;;
+    press_enter) [[ "$lang" == "fr" ]] && echo "Appuyez sur Entree pour continuer..." || echo "Press Enter to continue..." ;;
+    checking_updates) [[ "$lang" == "fr" ]] && echo "Verification des mises a jour" || echo "Checking for updates" ;;
+    no_upgradable_loaded) [[ "$lang" == "fr" ]] && echo "Aucune liste chargee. Lancez un refresh d'abord." || echo "No upgradable packages loaded. Run a refresh first." ;;
+    upgradable_title) [[ "$lang" == "fr" ]] && echo "Paquets upgradables" || echo "Upgradable packages" ;;
+    no_packages_available) [[ "$lang" == "fr" ]] && echo "Aucun paquet disponible." || echo "No packages available." ;;
+    no_changes) [[ "$lang" == "fr" ]] && echo "Aucun changement." || echo "No changes." ;;
+    no_packages_selected) [[ "$lang" == "fr" ]] && echo "Aucun paquet selectionne." || echo "No packages selected." ;;
+    select_packages_prompt) [[ "$lang" == "fr" ]] && echo "Selectionnez des paquets (ex: 1 3 5-7, a=tout, q=quitter): " || echo "Select packages (e.g. 1 3 5-7, a=all, q=quit): " ;;
+    select_dry_prompt) [[ "$lang" == "fr" ]] && echo "Selectionnez pour dry-run (ex: 1 3 5-7, a=tout, q=quitter): " || echo "Select packages for dry-run (e.g. 1 3 5-7, a=all, q=quit): " ;;
+    select_hold_prompt) [[ "$lang" == "fr" ]] && echo "Selectionnez pour hold (ex: 1 3 5-7, a=tout, q=quitter): " || echo "Select packages to hold (e.g. 1 3 5-7, a=all, q=quit): " ;;
+    select_unhold_prompt) [[ "$lang" == "fr" ]] && echo "Selectionnez pour unhold (ex: 1 3 5-7, a=tout, q=quitter): " || echo "Select packages to unhold (e.g. 1 3 5-7, a=all, q=quit): " ;;
+    will_update) [[ "$lang" == "fr" ]] && echo "Mise a jour de" || echo "Will update" ;;
+    proceed_prompt) [[ "$lang" == "fr" ]] && echo "Continuer ? [y/N]: " || echo "Proceed? [y/N]: " ;;
+    canceled) [[ "$lang" == "fr" ]] && echo "Annule." || echo "Canceled." ;;
+    upgrading) [[ "$lang" == "fr" ]] && echo "Mise a jour en cours..." || echo "Upgrading..." ;;
+    summary) [[ "$lang" == "fr" ]] && echo "Resume" || echo "Summary" ;;
+    updated) [[ "$lang" == "fr" ]] && echo "Mises a jour" || echo "Updated" ;;
+    status) [[ "$lang" == "fr" ]] && echo "Statut" || echo "Status" ;;
+    status_success) [[ "$lang" == "fr" ]] && echo "succes" || echo "success" ;;
+    status_failed) [[ "$lang" == "fr" ]] && echo "echec" || echo "failed" ;;
+    errors_detected) [[ "$lang" == "fr" ]] && echo "Erreurs detectees" || echo "Errors detected" ;;
+    dry_run_for) [[ "$lang" == "fr" ]] && echo "Dry-run pour" || echo "Dry-run for" ;;
+    hold_manager) [[ "$lang" == "fr" ]] && echo "Gestion des holds" || echo "Hold manager" ;;
+    hold_opt1) [[ "$lang" == "fr" ]] && echo "Hold depuis la liste upgradable" || echo "Hold packages from upgradable list" ;;
+    hold_opt2) [[ "$lang" == "fr" ]] && echo "Unhold des paquets" || echo "Unhold packages" ;;
+    hold_opt3) [[ "$lang" == "fr" ]] && echo "Voir les paquets en hold" || echo "View held packages" ;;
+    hold_opt4) [[ "$lang" == "fr" ]] && echo "Retour" || echo "Back" ;;
+    no_held) [[ "$lang" == "fr" ]] && echo "Aucun paquet en hold." || echo "No held packages." ;;
+    held_title) [[ "$lang" == "fr" ]] && echo "Paquets en hold" || echo "Held packages" ;;
+    holding) [[ "$lang" == "fr" ]] && echo "Mise en hold" || echo "Holding" ;;
+    unholding) [[ "$lang" == "fr" ]] && echo "Retrait du hold" || echo "Unholding" ;;
+    menu_title) [[ "$lang" == "fr" ]] && echo "Menu" || echo "Menu" ;;
+    menu_refresh) [[ "$lang" == "fr" ]] && echo "Refresh de la liste" || echo "Refresh update list" ;;
+    menu_view) [[ "$lang" == "fr" ]] && echo "Voir les paquets upgradables" || echo "View upgradable packages" ;;
+    menu_upgrade) [[ "$lang" == "fr" ]] && echo "Selectionner et mettre a jour" || echo "Select and upgrade" ;;
+    menu_dry) [[ "$lang" == "fr" ]] && echo "Dry-run" || echo "Dry-run preview" ;;
+    menu_hold) [[ "$lang" == "fr" ]] && echo "Gestion des holds" || echo "Hold manager" ;;
+    menu_help) [[ "$lang" == "fr" ]] && echo "Aide" || echo "Help" ;;
+    menu_lang) [[ "$lang" == "fr" ]] && echo "Langue" || echo "Language" ;;
+    menu_exit) [[ "$lang" == "fr" ]] && echo "Quitter" || echo "Exit" ;;
+    choose_option) [[ "$lang" == "fr" ]] && echo "Choisissez une option" || echo "Choose an option" ;;
+    invalid_option) [[ "$lang" == "fr" ]] && echo "Option invalide." || echo "Invalid option." ;;
+    bye) [[ "$lang" == "fr" ]] && echo "Salut." || echo "Bye." ;;
+    lang_title) [[ "$lang" == "fr" ]] && echo "Langue" || echo "Language" ;;
+    lang_current) [[ "$lang" == "fr" ]] && echo "Actuelle" || echo "Current" ;;
+    lang_choose) [[ "$lang" == "fr" ]] && echo "Choisir" || echo "Choose" ;;
+    lang_en) echo "English" ;;
+    lang_fr) echo "Francais" ;;
+    download_label) [[ "$lang" == "fr" ]] && echo "Telechargement" || echo "Download" ;;
+    disk_label) [[ "$lang" == "fr" ]] && echo "Espace disque" || echo "Disk" ;;
+    *) echo "$key" ;;
+  esac
+}
 
 run_cmd() {
   if [[ $(id -u) -eq 0 ]]; then
@@ -64,10 +141,10 @@ show_size_info() {
   disk_line=$(printf '%s\n' "$output" | grep -E 'After this operation|Après cette opération' | head -n 1)
 
   if [[ -n "$download_line" ]]; then
-    echo "Download: $download_line"
+    echo "$(tr download_label): $download_line"
   fi
   if [[ -n "$disk_line" ]]; then
-    echo "Disk: $disk_line"
+    echo "$(tr disk_label): $disk_line"
   fi
 }
 
@@ -104,18 +181,18 @@ spinner_run() {
 }
 
 pause() {
-  read -r -p "Press Enter to continue..." _
+  read -r -p "$(tr press_enter)" _
 }
 
 print_banner() {
   if [[ "$SHOW_BANNER" -eq 1 ]]; then
     clear
-    echo "${FG_BLUE}${BOLD}apt-updater${RESET}"
-    echo "${DIM}Modern CLI for selective apt upgrades${RESET}"
+    echo "${FG_BLUE}${BOLD}$(tr banner_title)${RESET}"
+    echo "${DIM}$(tr banner_tagline)${RESET}"
     if [[ -n "$LAST_REFRESH" ]]; then
-      echo "${DIM}Last refresh: $LAST_REFRESH${RESET}"
+      echo "${DIM}$(tr last_refresh): $LAST_REFRESH${RESET}"
     else
-      echo "${DIM}Last refresh: not run yet${RESET}"
+      echo "${DIM}$(tr last_refresh): $(tr last_refresh_none)${RESET}"
     fi
     echo ""
   fi
@@ -172,7 +249,7 @@ parse_selection() {
 
 refresh_updates() {
   ensure_sudo
-  spinner_run "Checking for updates" run_cmd apt-get update
+  spinner_run "$(tr checking_updates)" run_cmd apt-get update
   LAST_REFRESH=$(date '+%Y-%m-%d %H:%M:%S')
   mapfile -t UPGRADABLE < <(apt list --upgradable 2>/dev/null | tail -n +2 | awk -F/ '{print $1}' | sort -u)
 }
@@ -206,11 +283,11 @@ print_two_columns() {
 
 list_updates() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
-    echo "No upgradable packages loaded. Run a refresh first."
+    echo "$(tr no_upgradable_loaded)"
     return 0
   fi
 
-  echo "${BOLD}Upgradable packages${RESET}"
+  echo "${BOLD}$(tr upgradable_title)${RESET}"
   print_two_columns "${UPGRADABLE[@]}"
 }
 
@@ -220,7 +297,7 @@ select_packages() {
 
   SELECTED_PACKAGES=()
   if (( ${#items[@]} == 0 )); then
-    echo "No packages available."
+    echo "$(tr no_packages_available)"
     return 1
   fi
 
@@ -229,14 +306,14 @@ select_packages() {
   read -r -p "$prompt" selection
 
   if [[ "$selection" == "q" ]]; then
-    echo "No changes."
+    echo "$(tr no_changes)"
     return 1
   fi
 
   mapfile -t selected_indices < <(parse_selection "$selection" "${#items[@]}")
 
   if (( ${#selected_indices[@]} == 0 )); then
-    echo "No packages selected."
+    echo "$(tr no_packages_selected)"
     return 1
   fi
 
@@ -249,27 +326,27 @@ select_packages() {
 
 select_and_upgrade() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
-    echo "No package list loaded. Run refresh first."
+    echo "$(tr no_upgradable_loaded)"
     return 0
   fi
 
-  if ! select_packages UPGRADABLE "Select packages (e.g. 1 3 5-7, a=all, q=quit): "; then
+  if ! select_packages UPGRADABLE "$(tr select_packages_prompt)"; then
     return 0
   fi
 
   echo ""
-  echo "Will update: ${SELECTED_PACKAGES[*]}"
-  read -r -p "Proceed? [y/N]: " confirm
+  echo "$(tr will_update): ${SELECTED_PACKAGES[*]}"
+  read -r -p "$(tr proceed_prompt)" confirm
 
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-    echo "Canceled."
+    echo "$(tr canceled)"
     return 0
   fi
 
   ensure_sudo
   echo ""
   show_size_info "${SELECTED_PACKAGES[@]}"
-  echo "${BOLD}Upgrading...${RESET}"
+  echo "${BOLD}$(tr upgrading)${RESET}"
 
   local log_file
   local log_file_err
@@ -278,20 +355,20 @@ select_and_upgrade() {
   if run_cmd apt-get -qq --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${SELECTED_PACKAGES[@]}" \
     1>"$log_file" 2> >(tee "$log_file_err" >&2); then
     echo ""
-    echo "${FG_GREEN}${BOLD}Summary${RESET}"
-    echo "Updated: ${#SELECTED_PACKAGES[@]} package(s)"
-    echo "Status: success"
+    echo "${FG_GREEN}${BOLD}$(tr summary)${RESET}"
+    echo "$(tr updated): ${#SELECTED_PACKAGES[@]} package(s)"
+    echo "$(tr status): $(tr status_success)"
   else
     echo ""
-    echo "${FG_RED}${BOLD}Summary${RESET}"
-    echo "Updated: ${#SELECTED_PACKAGES[@]} package(s)"
-    echo "Status: failed"
+    echo "${FG_RED}${BOLD}$(tr summary)${RESET}"
+    echo "$(tr updated): ${#SELECTED_PACKAGES[@]} package(s)"
+    echo "$(tr status): $(tr status_failed)"
   fi
 
   local err_count
   err_count=$(grep -E '^(E:|Err:)' "$log_file" "$log_file_err" 2>/dev/null | wc -l | tr -d ' ')
   if [[ "$err_count" != "0" ]]; then
-    echo "Errors detected: $err_count"
+    echo "$(tr errors_detected): $err_count"
     grep -E '^(E:|Err:)' "$log_file" "$log_file_err" 2>/dev/null | head -n 10
   fi
   rm -f "$log_file" "$log_file_err"
@@ -299,16 +376,16 @@ select_and_upgrade() {
 
 dry_run_preview() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
-    echo "No package list loaded. Run refresh first."
+    echo "$(tr no_upgradable_loaded)"
     return 0
   fi
 
-  if ! select_packages UPGRADABLE "Select packages for dry-run (e.g. 1 3 5-7, a=all, q=quit): "; then
+  if ! select_packages UPGRADABLE "$(tr select_dry_prompt)"; then
     return 0
   fi
 
   echo ""
-  echo "Dry-run for: ${SELECTED_PACKAGES[*]}"
+  echo "$(tr dry_run_for): ${SELECTED_PACKAGES[*]}"
   echo ""
   ensure_sudo
   run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade --dry-run "${SELECTED_PACKAGES[@]}"
@@ -316,25 +393,25 @@ dry_run_preview() {
 
 manage_holds() {
   while true; do
-    echo "${BOLD}Hold manager${RESET}"
-    echo "  1) Hold packages from upgradable list"
-    echo "  2) Unhold packages"
-    echo "  3) View held packages"
-    echo "  4) Back"
+    echo "${BOLD}$(tr hold_manager)${RESET}"
+    echo "  1) $(tr hold_opt1)"
+    echo "  2) $(tr hold_opt2)"
+    echo "  3) $(tr hold_opt3)"
+    echo "  4) $(tr hold_opt4)"
     echo ""
-    read -r -p "Choose an option [1-4]: " hold_choice
+    read -r -p "$(tr choose_option) [1-4]: " hold_choice
     echo ""
 
     case "$hold_choice" in
       1)
         if (( ${#UPGRADABLE[@]} == 0 )); then
-          echo "No package list loaded. Run refresh first."
+          echo "$(tr no_upgradable_loaded)"
           pause
           continue
         fi
-        if select_packages UPGRADABLE "Select packages to hold (e.g. 1 3 5-7, a=all, q=quit): "; then
+        if select_packages UPGRADABLE "$(tr select_hold_prompt)"; then
           ensure_sudo
-          echo "Holding: ${SELECTED_PACKAGES[*]}"
+          echo "$(tr holding): ${SELECTED_PACKAGES[*]}"
           run_cmd apt-mark hold "${SELECTED_PACKAGES[@]}"
         fi
         pause
@@ -342,13 +419,13 @@ manage_holds() {
       2)
         mapfile -t held < <(apt-mark showhold 2>/dev/null | sort -u)
         if (( ${#held[@]} == 0 )); then
-          echo "No held packages."
+          echo "$(tr no_held)"
           pause
           continue
         fi
-        if select_packages held "Select packages to unhold (e.g. 1 3 5-7, a=all, q=quit): "; then
+        if select_packages held "$(tr select_unhold_prompt)"; then
           ensure_sudo
-          echo "Unholding: ${SELECTED_PACKAGES[*]}"
+          echo "$(tr unholding): ${SELECTED_PACKAGES[*]}"
           run_cmd apt-mark unhold "${SELECTED_PACKAGES[@]}"
         fi
         pause
@@ -356,9 +433,9 @@ manage_holds() {
       3)
         mapfile -t held < <(apt-mark showhold 2>/dev/null | sort -u)
         if (( ${#held[@]} == 0 )); then
-          echo "No held packages."
+          echo "$(tr no_held)"
         else
-          echo "${BOLD}Held packages${RESET}"
+          echo "${BOLD}$(tr held_title)${RESET}"
           print_two_columns "${held[@]}"
         fi
         pause
@@ -367,7 +444,7 @@ manage_holds() {
         return 0
         ;;
       *)
-        echo "Invalid option."
+        echo "$(tr invalid_option)"
         pause
         ;;
     esac
@@ -376,23 +453,50 @@ manage_holds() {
 
 show_help() {
   clear
-  echo "${FG_BLUE}${BOLD}apt-updater - Help${RESET}"
+  echo "${FG_BLUE}${BOLD}apt-updater - $(tr menu_help)${RESET}"
   echo ""
-  echo "${BOLD}EN${RESET}"
-  echo "- Refresh: runs apt update and loads the upgradable list."
-  echo "- View: shows upgradable packages in two columns."
-  echo "- Upgrade: select packages and run only-upgrade."
-  echo "- Dry-run: simulate an upgrade without changes."
-  echo "- Hold: prevent upgrades for selected packages (apt-mark hold)."
-  echo ""
-  echo "${BOLD}FR${RESET}"
-  echo "- Refresh : lance apt update et charge la liste upgradable."
-  echo "- View : affiche les paquets en deux colonnes."
-  echo "- Upgrade : selection des paquets puis only-upgrade."
-  echo "- Dry-run : simulation sans modification."
-  echo "- Hold : bloque des paquets (apt-mark hold)."
+
+  if [[ $(current_lang) == "fr" ]]; then
+    echo "- Refresh : lance apt update et charge la liste upgradable."
+    echo "- View : affiche les paquets en deux colonnes."
+    echo "- Upgrade : selection des paquets puis only-upgrade."
+    echo "- Dry-run : simulation sans modification."
+    echo "- Hold : bloque des paquets (apt-mark hold)."
+  else
+    echo "- Refresh: runs apt update and loads the upgradable list."
+    echo "- View: shows upgradable packages in two columns."
+    echo "- Upgrade: select packages and run only-upgrade."
+    echo "- Dry-run: simulate an upgrade without changes."
+    echo "- Hold: prevent upgrades for selected packages (apt-mark hold)."
+  fi
   echo ""
   pause
+}
+
+select_language() {
+  local current
+  current=$(current_lang)
+
+  clear
+  echo "${FG_BLUE}${BOLD}$(tr lang_title)${RESET}"
+  echo ""
+  echo "$(tr lang_current): $current"
+  echo ""
+  echo "  1) $(tr lang_en)"
+  echo "  2) $(tr lang_fr)"
+  echo "  3) Auto"
+  echo ""
+  read -r -p "$(tr lang_choose) [1-3]: " choice
+
+  case "$choice" in
+    1) LANG_CHOICE="en" ;;
+    2) LANG_CHOICE="fr" ;;
+    3) LANG_CHOICE="auto" ;;
+    *)
+      echo "$(tr invalid_option)"
+      pause
+      ;;
+  esac
 }
 
 main_menu() {
@@ -402,16 +506,17 @@ main_menu() {
 
   while true; do
     print_banner
-    echo "${BOLD}Menu${RESET}"
-    echo "  1) Refresh update list"
-    echo "  2) View upgradable packages"
-    echo "  3) Select and upgrade"
-    echo "  4) Dry-run preview"
-    echo "  5) Hold manager"
-    echo "  6) Help"
-    echo "  7) Exit"
+    echo "${BOLD}$(tr menu_title)${RESET}"
+    echo "  1) $(tr menu_refresh)"
+    echo "  2) $(tr menu_view)"
+    echo "  3) $(tr menu_upgrade)"
+    echo "  4) $(tr menu_dry)"
+    echo "  5) $(tr menu_hold)"
+    echo "  6) $(tr menu_help)"
+    echo "  7) $(tr menu_lang)"
+    echo "  8) $(tr menu_exit)"
     echo ""
-    read -r -p "Choose an option [1-7]: " choice
+    read -r -p "$(tr choose_option) [1-8]: " choice
     echo ""
 
     case "$choice" in
@@ -438,11 +543,14 @@ main_menu() {
         show_help
         ;;
       7)
-        echo "Bye."
+        select_language
+        ;;
+      8)
+        echo "$(tr bye)"
         exit 0
         ;;
       *)
-        echo "Invalid option."
+        echo "$(tr invalid_option)"
         pause
         ;;
     esac
