@@ -53,6 +53,24 @@ ensure_sudo() {
   fi
 }
 
+show_size_info() {
+  local -a pkgs=("$@")
+  local output
+  local download_line
+  local disk_line
+
+  output=$(run_cmd apt-get -s --only-upgrade install "${pkgs[@]}" 2>/dev/null || true)
+  download_line=$(printf '%s\n' "$output" | grep -E 'Need to get|Il est nécessaire de prendre' | head -n 1)
+  disk_line=$(printf '%s\n' "$output" | grep -E 'After this operation|Après cette opération' | head -n 1)
+
+  if [[ -n "$download_line" ]]; then
+    echo "Download: $download_line"
+  fi
+  if [[ -n "$disk_line" ]]; then
+    echo "Disk: $disk_line"
+  fi
+}
+
 spinner_run() {
   local -r msg="$1"
   shift
@@ -249,11 +267,16 @@ select_and_upgrade() {
   fi
 
   ensure_sudo
+  echo ""
+  show_size_info "${SELECTED_PACKAGES[@]}"
   echo "${BOLD}Upgrading...${RESET}"
 
   local log_file
+  local log_file_err
   log_file=$(mktemp)
-  if run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${SELECTED_PACKAGES[@]}" | tee "$log_file"; then
+  log_file_err=$(mktemp)
+  if run_cmd apt-get -qq --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${SELECTED_PACKAGES[@]}" \
+    1>"$log_file" 2> >(tee "$log_file_err" >&2); then
     echo ""
     echo "${FG_GREEN}${BOLD}Summary${RESET}"
     echo "Updated: ${#SELECTED_PACKAGES[@]} package(s)"
@@ -266,12 +289,12 @@ select_and_upgrade() {
   fi
 
   local err_count
-  err_count=$(grep -E '^(E:|Err:)' "$log_file" | wc -l | tr -d ' ')
+  err_count=$(grep -E '^(E:|Err:)' "$log_file" "$log_file_err" 2>/dev/null | wc -l | tr -d ' ')
   if [[ "$err_count" != "0" ]]; then
     echo "Errors detected: $err_count"
-    grep -E '^(E:|Err:)' "$log_file" | head -n 10
+    grep -E '^(E:|Err:)' "$log_file" "$log_file_err" 2>/dev/null | head -n 10
   fi
-  rm -f "$log_file"
+  rm -f "$log_file" "$log_file_err"
 }
 
 dry_run_preview() {
