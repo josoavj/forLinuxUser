@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# apt-updater v3.3 — Fixed sudo interception and lifecycle bugs
+# apt-updater v3.4 — Strict unbound variable safety & robust lifecycle
 set -euo pipefail
 
 # ─────────────────────────────────────────────
@@ -73,7 +73,7 @@ msg() {
   local lang; lang=$(_current_lang)
   case "$key" in
     app_name)          echo "apt-updater" ;;
-    app_version)       echo "v3.3" ;;
+    app_version)       echo "v1.0" ;;
     app_tagline)       [[ $lang == fr ]] && echo "Gestionnaire de mises à jour interactif" || echo "Interactive upgrade manager" ;;
     last_refresh)      [[ $lang == fr ]] && echo "Dernier refresh" || echo "Last refresh" ;;
     last_refresh_none) [[ $lang == fr ]] && echo "jamais" || echo "never" ;;
@@ -107,6 +107,8 @@ msg() {
     hold_manager)      [[ $lang == fr ]] && echo "Gestionnaire de holds" || echo "Hold manager" ;;
     held_title)        [[ $lang == fr ]] && echo "Paquets en hold" || echo "Held packages" ;;
     sudo_failed)       [[ $lang == fr ]] && echo "Erreur d'authentification ou privilèges refusés. Retour au menu." || echo "Authentication failed or privileges denied. Returning to menu." ;;
+    update_failed)     [[ $lang == fr ]] && echo "La mise à jour a échoué. Retour au menu." || echo "Update failed. Returning to menu." ;;
+    dryrun_failed)     [[ $lang == fr ]] && echo "La simulation a échoué. Retour au menu." || echo "Dry-run failed. Returning to menu." ;;
     *) echo "$key" ;;
   esac
 }
@@ -118,7 +120,7 @@ run_cmd() {
 ensure_sudo() {
   if [[ $(id -u) -ne 0 ]]; then
     echo " "
-    # Interception robuste sans casser le flag global -e du script
+    sudo -k
     if ! sudo -v 2>/dev/null; then
       echo -e "  ${FG_RED}✗ $(msg sudo_failed)${RESET}"
       log ERROR "Échec de l'authentification sudo"
@@ -167,7 +169,7 @@ refresh_updates() {
     local rem="${line#*/}"
     local repo_info="${rem%% *}"
     
-    local version_new=""
+    local version_new="?"
     if [[ "$line" =~ ([0-9][^ ]+) ]]; then
       version_new="${BASH_REMATCH[1]}"
     fi
@@ -343,7 +345,10 @@ get_user_selection() {
   echo ""
   echo -n "  $(msg input_prompt)"
   local user_input
-  read -r user_input
+  if ! read -r user_input; then
+    echo "  $(msg canceled)"
+    return 1
+  fi
 
   if [[ "$user_input" == "q" ]]; then
     SELECTED_IDX=()
@@ -371,12 +376,13 @@ confirm_timeout() {
     fi
     (( remaining-- ))
   done
+  echo ""
   return 1
 }
 
 pause() {
   printf '\n  %s' "${DIM}$(msg press_enter)${RESET}"
-  IFS= read -rs _
+  IFS= read -rs _ || true
 }
 
 do_select_and_upgrade() {
@@ -384,10 +390,8 @@ do_select_and_upgrade() {
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
 
-  # Étape 1 : On demande le mot de passe en premier, si échec -> retour propre immédiat au menu
   ensure_sudo || { pause; return; }
   
-  # Étape 2 : Sélection utilisateur
   if ! get_user_selection "$(msg upgradable_title)" UPGRADABLE UPGRADABLE_TYPES; then
     return
   fi
@@ -400,9 +404,13 @@ do_select_and_upgrade() {
   tput clear 2>/dev/null || clear
   _header
   echo "  ${BOLD}$(msg will_update):${RESET}"
+  
+  # Utilisation de :-? pour éviter que 'set -u' ne fasse crasher le script si l'index est instable
   for idx in "${SELECTED_IDX[@]}"; do
     pkgs+=("${UPGRADABLE[$idx]}")
-    echo "    ${FG_GREEN}·${RESET} ${UPGRADABLE[$idx]} ${DIM}${UPGRADABLE_VERSIONS_CUR[$idx]}${RESET} -> ${FG_GREEN}${UPGRADABLE_VERSIONS_NEW[$idx]}${RESET}"
+    local cur_v="${UPGRADABLE_VERSIONS_CUR[$idx]:-?}"
+    local new_v="${UPGRADABLE_VERSIONS_NEW[$idx]:-?}"
+    echo "    ${FG_GREEN}·${RESET} ${UPGRADABLE[$idx]} ${DIM}${cur_v}${RESET} -> ${FG_GREEN}${new_v}${RESET}"
   done
   echo ""
   
@@ -420,7 +428,12 @@ do_select_and_upgrade() {
 
   echo -e "\n  ${BOLD}$(msg upgrading)${RESET}\n"
 
-  run_cmd apt-get install --only-upgrade -y "${pkgs[@]}"
+  if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${pkgs[@]}"; then
+    echo "  ${FG_RED}$(msg update_failed)${RESET}"
+    log ERROR "Échec mise à jour : ${pkgs[*]}"
+    pause
+    return
+  fi
   log INFO "Paquets mis à jour : ${pkgs[*]}"
   
   UPGRADABLE=()
@@ -438,7 +451,12 @@ do_dry_run() {
     local -a pkgs=()
     for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
     echo ""
-    run_cmd apt-get install --only-upgrade --dry-run "${pkgs[@]}"
+    if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade --dry-run "${pkgs[@]}"; then
+      echo "  ${FG_RED}$(msg dryrun_failed)${RESET}"
+      log ERROR "Échec dry-run : ${pkgs[*]}"
+      pause
+      return
+    fi
     pause
   fi
 }
@@ -506,7 +524,7 @@ select_language() {
   echo "  1: English"
   echo "  2: Français"
   local lang_choice
-  read -rsn1 lang_choice
+  read -rsn1 lang_choice || return
   [[ "$lang_choice" == "1" ]] && LANG_CHOICE="en"
   [[ "$lang_choice" == "2" ]] && LANG_CHOICE="fr"
 }
