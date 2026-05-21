@@ -389,9 +389,31 @@ _section() {
 }
 
 # ─────────────────────────────────────────────
-#  PACKAGE TABLE  (aligned columns)
+#  PACKAGE LIST  (two columns + details)
 # ─────────────────────────────────────────────
-_draw_package_table() {
+_format_pkg_line() {
+  local idx=$1
+  local name="$2"
+  local cur="$3"
+  local new="$4"
+  local type="$5"
+
+  local type_tag="${type:-normal}"
+  if [[ "$type_tag" == *security* ]]; then
+    type_tag="${FG_RED}sec${RESET}"
+  else
+    type_tag="${FG_CYAN}std${RESET}"
+  fi
+
+  printf '[%d] %s %s%s%s %s%s%s %s' \
+    "$((idx + 1))" \
+    "${FG_WHITE}${name}${RESET}" \
+    "${DIM}" "${cur}" "${RESET}" \
+    "${FG_GREEN}" "${new}" "${RESET}" \
+    "$type_tag"
+}
+
+_draw_two_column_list() {
   local -n pkgs=$1
   local -n curs=$2
   local -n news=$3
@@ -407,70 +429,85 @@ _draw_package_table() {
     return 0
   fi
 
-  # Column widths (responsive)
-  local w_num=4
-  local w_sel=3
-  local available=$(( TERM_COLS - w_num - w_sel - 4 - 3 ))  # 4 separators, 3 gaps
-  local w_name=$(( available * 32 / 100 ))
-  local w_cur=$(( available * 28 / 100 ))
-  local w_new=$(( available * 28 / 100 ))
-  local w_type=$(( available - w_name - w_cur - w_new ))
-  (( w_name < 18 )) && w_name=18
-  (( w_cur  < 14 )) && w_cur=14
-  (( w_new  < 14 )) && w_new=14
-  (( w_type < 8  )) && w_type=8
-
-  # Header
-  printf '  %s  %-*s  %-*s  %-*s  %-*s\n' \
-    "$(printf '%*s' $((w_num)) '#')" \
-    "$w_name" "PACKAGE" \
-    "$w_cur"  "INSTALLED" \
-    "$w_new"  "AVAILABLE" \
-    "$w_type" "TYPE"
-  printf '  '
-  printf '%*s' $(( w_num + 2 + w_name + 2 + w_cur + 2 + w_new + 2 + w_type + 2 )) '' \
-    | tr ' ' '─'
-  echo
+  local gutter=4
+  local col_width=$(( (TERM_COLS - gutter - 4) / 2 ))
+  (( col_width < 24 )) && col_width=24
 
   local end=$(( start + max_rows ))
   (( end > total )) && end=$total
 
-  local i
-  for (( i=start; i<end; i++ )); do
-    local num=$(( i+1 ))
-    local sel_marker="  "
-    local row_prefix="" row_suffix=""
+  local row
+  for (( row=0; row<max_rows; row++ )); do
+    local left_index=$(( start + row ))
+    local right_index=$(( start + row + max_rows ))
 
-    if [[ "${sel_flags[$i]:-}" == "1" ]]; then
-      sel_marker="${FG_GREEN}✓ ${RESET}"
+    local left_text=""
+    local right_text=""
+    local left_prefix="" left_suffix=""
+    local right_prefix="" right_suffix=""
+
+    if (( left_index < total )); then
+      left_text=$(_format_pkg_line "$left_index" "${pkgs[$left_index]}" \
+        "${curs[$left_index]:-?}" "${news[$left_index]:-?}" "${types[$left_index]:-normal}")
+      if [[ "${sel_flags[$left_index]:-}" == "1" ]]; then
+        left_text="${FG_GREEN}✓${RESET} ${left_text}"
+      else
+        left_text="  ${left_text}"
+      fi
+      if (( left_index == highlight )); then
+        left_prefix="${REVERSE}"; left_suffix="${RESET}"
+      fi
     fi
 
-    if (( i == highlight )); then
-      row_prefix="${REVERSE}"
-      row_suffix="${RESET}"
+    if (( right_index < total )); then
+      right_text=$(_format_pkg_line "$right_index" "${pkgs[$right_index]}" \
+        "${curs[$right_index]:-?}" "${news[$right_index]:-?}" "${types[$right_index]:-normal}")
+      if [[ "${sel_flags[$right_index]:-}" == "1" ]]; then
+        right_text="${FG_GREEN}✓${RESET} ${right_text}"
+      else
+        right_text="  ${right_text}"
+      fi
+      if (( right_index == highlight )); then
+        right_prefix="${REVERSE}"; right_suffix="${RESET}"
+      fi
     fi
 
-    local type_str="${types[$i]:-normal}"
-    local type_colored
-    if [[ "$type_str" == *security* ]]; then
-      type_colored="${FG_RED}${BOLD}security${RESET}"
-    else
-      type_colored="${FG_CYAN}normal${RESET}"
+    local left_cell=""
+    local right_cell=""
+    if [[ -n "$left_text" ]]; then
+      left_cell=$(_trunc "$left_text" "$col_width")
+      left_cell="${left_prefix}${left_cell}${left_suffix}"
+    fi
+    if [[ -n "$right_text" ]]; then
+      right_cell=$(_trunc "$right_text" "$col_width")
+      right_cell="${right_prefix}${right_cell}${right_suffix}"
     fi
 
-    local name_t; name_t=$(_trunc "${pkgs[$i]}"  "$w_name")
-    local cur_t;  cur_t=$(_trunc  "${curs[$i]:-?}" "$w_cur")
-    local new_t;  new_t=$(_trunc  "${news[$i]:-?}" "$w_new")
-
-    printf '%s  %s%*d  %s%s  %s%s  %s%s  ' \
-      "${row_prefix}" \
-      "${sel_marker}" \
-      "$w_num" "$num" \
-      "${FG_WHITE}" "$name_t" \
-      "${DIM}"      "$cur_t"  \
-      "${FG_GREEN}" "$new_t"
-    printf '%-*s%s\n' "$w_type" "$type_str" "${row_suffix}${RESET}"
+    printf '  %-*s%*s%-*s\n' "$col_width" "$left_cell" "$gutter" '' "$col_width" "$right_cell"
   done
+  echo
+}
+
+_detail_block() {
+  local -n pkgs=$1
+  local -n curs=$2
+  local -n news=$3
+  local -n types=$4
+  local idx=$5
+
+  if (( idx < 0 || idx >= ${#pkgs[@]} )); then
+    return 0
+  fi
+
+  local name="${pkgs[$idx]}"
+  local cur="${curs[$idx]:-?}"
+  local new="${news[$idx]:-?}"
+  local type="${types[$idx]:-normal}"
+
+  _section "Details"
+  printf '  %-12s %s\n' "Package:" "$name"
+  printf '  %-12s %s -> %s\n' "Version:" "$cur" "$new"
+  printf '  %-12s %s\n' "Type:" "$type"
   echo
 }
 
@@ -564,7 +601,7 @@ tui_select() {
     for s in "${sel[@]}"; do [[ "$s" == "1" ]] && (( sel_count++ )) || true; done
 
     _section "$title" "${#_pkgs[@]}"
-    local reserved=9
+    local reserved=12
     (( TERM_ROWS < 22 )) && reserved=7
     local max_rows=$(( TERM_ROWS - reserved ))
     (( max_rows < 4 )) && max_rows=4
@@ -573,7 +610,8 @@ tui_select() {
     elif (( cursor >= view_start + max_rows )); then
       view_start=$(( cursor - max_rows + 1 ))
     fi
-    _draw_package_table _pkgs _curs _news _types sel "$cursor" "$view_start" "$max_rows"
+    _draw_two_column_list _pkgs _curs _news _types sel "$cursor" "$view_start" "$max_rows"
+    _detail_block _pkgs _curs _news _types "$cursor"
 
     # Summary line
     printf '  %s%d selected%s\n\n' "${FG_GREEN}${BOLD}" "$sel_count" "${RESET}"
@@ -681,7 +719,7 @@ tui_view() {
     _header
 
     _section "$title" "${#_pkgs[@]}"
-    local reserved=7
+    local reserved=10
     (( TERM_ROWS < 22 )) && reserved=6
     local max_rows=$(( TERM_ROWS - reserved ))
     (( max_rows < 4 )) && max_rows=4
@@ -690,7 +728,8 @@ tui_view() {
     elif (( cursor >= view_start + max_rows )); then
       view_start=$(( cursor - max_rows + 1 ))
     fi
-    _draw_package_table _pkgs _curs _news _types sel_flags "$cursor" "$view_start" "$max_rows"
+    _draw_two_column_list _pkgs _curs _news _types sel_flags "$cursor" "$view_start" "$max_rows"
+    _detail_block _pkgs _curs _news _types "$cursor"
 
     _statusbar "↑↓ scroll  PgUp/PgDn page  q back"
 
