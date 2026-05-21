@@ -65,11 +65,7 @@ _current_lang() {
     echo "fr"
   else
     echo "en"
-    read_tty_line user_input "" || return 1
-    if [[ "$user_input" == "q" ]]; then
-      SELECTED_IDX=()
-      return 1
-    fi
+  fi
 }
 
 msg() {
@@ -138,6 +134,16 @@ read_tty_char() {
   else
     IFS= read -rsn1 "$__var" || return 1
   fi
+}
+
+with_errexit_disabled() {
+  local had_errexit=0
+  [[ $- == *e* ]] && had_errexit=1
+  set +e
+  "$@"
+  local rc=$?
+  (( had_errexit )) && set -e
+  return $rc
 }
 
 ensure_sudo() {
@@ -393,7 +399,12 @@ confirm_timeout() {
   tput cnorm 2>/dev/null || true
   while (( remaining > 0 )); do
     printf '\r%s [%ss] ' "$prompt" "$remaining"
-    if IFS= read -rsn1 -t 1 answer; then
+    if [[ -t 0 ]]; then
+      IFS= read -rsn1 -t 1 answer < /dev/tty || true
+    else
+      IFS= read -rsn1 -t 1 answer || true
+    fi
+    if [[ -n "$answer" ]]; then
       echo "$answer"
       [[ "$answer" =~ $regex ]] && return 0 || return 1
     fi
@@ -409,6 +420,10 @@ pause() {
 }
 
 do_select_and_upgrade() {
+  with_errexit_disabled do_select_and_upgrade_impl
+}
+
+do_select_and_upgrade_impl() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
@@ -451,7 +466,7 @@ do_select_and_upgrade() {
 
   echo -e "\n  ${BOLD}$(msg upgrading)${RESET}\n"
 
-  if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${pkgs[@]}"; then
+  if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${pkgs[@]}" < /dev/tty; then
     echo "  ${FG_RED}$(msg update_failed)${RESET}"
     log ERROR "Échec mise à jour : ${pkgs[*]}"
     pause
@@ -464,6 +479,10 @@ do_select_and_upgrade() {
 }
 
 do_dry_run() {
+  with_errexit_disabled do_dry_run_impl
+}
+
+do_dry_run_impl() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
@@ -474,7 +493,7 @@ do_dry_run() {
     local -a pkgs=()
     for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
     echo ""
-    if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade --dry-run "${pkgs[@]}"; then
+    if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade --dry-run "${pkgs[@]}" < /dev/tty; then
       echo "  ${FG_RED}$(msg dryrun_failed)${RESET}"
       log ERROR "Échec dry-run : ${pkgs[*]}"
       pause
@@ -497,7 +516,7 @@ do_hold_manager() {
     _statusbar "1-3 action  q retour"
 
     local choice
-    read -rsn1 choice || return
+    read_tty_char choice || return
     case "$choice" in
       1)
         ensure_sudo || { pause; continue; }
@@ -547,7 +566,7 @@ select_language() {
   echo "  1: English"
   echo "  2: Français"
   local lang_choice
-  read -rsn1 lang_choice || return
+  read_tty_char lang_choice || return
   [[ "$lang_choice" == "1" ]] && LANG_CHOICE="en"
   [[ "$lang_choice" == "2" ]] && LANG_CHOICE="fr"
 }
@@ -580,7 +599,7 @@ main_menu() {
     _statusbar "r refresh  v voir  u upgrade  d dry-run  h holds  L langue  q quitter"
 
     local choice
-    read -rsn1 choice || continue
+    read_tty_char choice || continue
     case "$choice" in
       r|R) refresh_updates ;;
       v|V) do_view_list ;;
