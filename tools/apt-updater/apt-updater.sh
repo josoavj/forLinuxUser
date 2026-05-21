@@ -550,48 +550,35 @@ _detail_block() {
 read_key() {
   KEY=""
   local key
-  IFS= read -rsn1 key
+  IFS= read -rsn1 key || return
   if [[ "$key" == $'\x1b' ]]; then
-    local seq
-    IFS= read -rsn1 -t 0.05 seq || true
-    if [[ "$seq" == "[" ]]; then
-      local rest
-      IFS= read -rsn1 -t 0.05 rest || true
-
-      # Mouse / scroll sequences
-      if [[ "$rest" == "M" || "$rest" == "<" ]]; then
-        IFS= read -rsn20 -t 0.05 _ || true
-        KEY="MOUSE"
-        return
+    local seq=""
+    local next
+    while IFS= read -rsn1 -t 0.05 next; do
+      seq+="$next"
+      if [[ "$seq" == "[<"* ]]; then
+        [[ "$seq" == *"M" || "$seq" == *"m" ]] && break
+      elif [[ ${#seq} -ge 6 ]]; then
+        break
       fi
+    done
 
-      if [[ "$rest" == "5" || "$rest" == "6" ]]; then
-        local tilde
-        IFS= read -rsn1 -t 0.05 tilde || true
-        if [[ "$rest" == "5" ]]; then
-          KEY="PAGEUP"
-        else
-          KEY="PAGEDOWN"
-        fi
-        return
-      fi
-
-      case "$rest" in
-        A) KEY="UP" ;;
-        B) KEY="DOWN" ;;
-        C) KEY="RIGHT" ;;
-        D) KEY="LEFT" ;;
-        *) KEY="ESC" ;;
-      esac
-    elif [[ -z "$seq" ]]; then
-      KEY="ESC"
-    else
-      KEY="ESC"
-    fi
+    case "$seq" in
+      "") KEY="ESC" ;;
+      "[A") KEY="UP" ;;
+      "[B") KEY="DOWN" ;;
+      "[C") KEY="RIGHT" ;;
+      "[D") KEY="LEFT" ;;
+      "[5~") KEY="PAGEUP" ;;
+      "[6~") KEY="PAGEDOWN" ;;
+      "[<"*|"[M"*) KEY="MOUSE" ;;
+      *) KEY="ESC" ;;
+    esac
   else
     KEY="$key"
   fi
 }
+
 
 # ─────────────────────────────────────────────
 #  TUI SELECTOR  (arrow keys + space)
@@ -718,6 +705,9 @@ tui_select() {
         trap - RETURN
         return 1
         ;;
+      *)
+        continue
+        ;;
     esac
   done
 }
@@ -790,6 +780,9 @@ tui_view() {
         stty "$old_stty" 2>/dev/null; tput cnorm 2>/dev/null
         trap - RETURN
         return 0
+        ;;
+      *)
+        continue
         ;;
     esac
   done
