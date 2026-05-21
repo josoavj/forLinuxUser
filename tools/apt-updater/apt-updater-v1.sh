@@ -65,7 +65,11 @@ _current_lang() {
     echo "fr"
   else
     echo "en"
-  fi
+    read_tty_line user_input "" || return 1
+    if [[ "$user_input" == "q" ]]; then
+      SELECTED_IDX=()
+      return 1
+    fi
 }
 
 msg() {
@@ -115,6 +119,25 @@ msg() {
 
 run_cmd() {
   if [[ $(id -u) -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+read_tty_line() {
+  local __var="$1"
+  local prompt="$2"
+  if [[ -t 0 ]]; then
+    IFS= read -r -p "$prompt" "$__var" < /dev/tty || return 1
+  else
+    IFS= read -r -p "$prompt" "$__var" || return 1
+  fi
+}
+
+read_tty_char() {
+  local __var="$1"
+  if [[ -t 0 ]]; then
+    IFS= read -rsn1 "$__var" < /dev/tty || return 1
+  else
+    IFS= read -rsn1 "$__var" || return 1
+  fi
 }
 
 ensure_sudo() {
@@ -345,7 +368,7 @@ get_user_selection() {
   echo ""
   echo -n "  $(msg input_prompt)"
   local user_input
-  if ! read -r user_input; then
+  if ! read_tty_line user_input ""; then
     echo "  $(msg canceled)"
     return 1
   fi
@@ -382,7 +405,7 @@ confirm_timeout() {
 
 pause() {
   printf '\n  %s' "${DIM}$(msg press_enter)${RESET}"
-  IFS= read -rs _ || true
+  read_tty_char _ || true
 }
 
 do_select_and_upgrade() {
