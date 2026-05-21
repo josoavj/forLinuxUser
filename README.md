@@ -6,7 +6,6 @@
 
 <p align="center">
   <!-- Badges -->
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/github/last-commit/josoavj/forLinuxUser" alt="Last Commit">
   <img src="https://img.shields.io/github/stars/josoavj/forLinuxUser?style=social" alt="GitHub Stars">
 </p>
