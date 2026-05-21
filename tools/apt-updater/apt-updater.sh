@@ -10,7 +10,13 @@ USAGE
   exit 0
 fi
 
-if command -v tput >/dev/null 2>&1; then
+AUTO_REFRESH_ON_START=0
+COLUMN_WIDTH=38
+ENABLE_COLOR=1
+SHOW_BANNER=1
+SPINNER_ENABLED=1
+
+if [[ "$ENABLE_COLOR" -eq 1 ]] && command -v tput >/dev/null 2>&1; then
   BOLD=$(tput bold)
   DIM=$(tput dim)
   RESET=$(tput sgr0)
@@ -30,6 +36,7 @@ fi
 
 UPGRADABLE=()
 LAST_REFRESH=""
+SELECTED_PACKAGES=()
 
 run_cmd() {
   if [[ $(id -u) -eq 0 ]]; then
@@ -45,6 +52,11 @@ spinner_run() {
   local -a cmd=("$@")
   local -a frames=("-" "\\" "|" "/")
   local i=0
+
+  if [[ "$SPINNER_ENABLED" -eq 0 ]]; then
+    ("${cmd[@]}")
+    return $?
+  fi
 
   printf '%s' "${DIM}${msg}${RESET} "
   ("${cmd[@]}") >/dev/null 2>&1 &
@@ -71,15 +83,17 @@ pause() {
 }
 
 print_banner() {
-  clear
-  echo "${FG_BLUE}${BOLD}apt-updater${RESET}"
-  echo "${DIM}Modern CLI for selective apt upgrades${RESET}"
-  if [[ -n "$LAST_REFRESH" ]]; then
-    echo "${DIM}Last refresh: $LAST_REFRESH${RESET}"
-  else
-    echo "${DIM}Last refresh: not run yet${RESET}"
+  if [[ "$SHOW_BANNER" -eq 1 ]]; then
+    clear
+    echo "${FG_BLUE}${BOLD}apt-updater${RESET}"
+    echo "${DIM}Modern CLI for selective apt upgrades${RESET}"
+    if [[ -n "$LAST_REFRESH" ]]; then
+      echo "${DIM}Last refresh: $LAST_REFRESH${RESET}"
+    else
+      echo "${DIM}Last refresh: not run yet${RESET}"
+    fi
+    echo ""
   fi
-  echo ""
 }
 
 parse_selection() {
@@ -137,6 +151,33 @@ refresh_updates() {
   mapfile -t UPGRADABLE < <(apt list --upgradable 2>/dev/null | tail -n +2 | awk -F/ '{print $1}' | sort -u)
 }
 
+print_two_columns() {
+  local -a items=("$@")
+  local count=${#items[@]}
+  local rows=$(( (count + 1) / 2 ))
+  local width=$COLUMN_WIDTH
+
+  if (( count == 0 )); then
+    return 0
+  fi
+
+  for ((i=0; i<rows; i++)); do
+    local left_index=$i
+    local right_index=$((i + rows))
+    local left_text=""
+    local right_text=""
+
+    if (( left_index < count )); then
+      left_text=$(printf '[%d] %s' "$((left_index + 1))" "${items[$left_index]}")
+    fi
+    if (( right_index < count )); then
+      right_text=$(printf '[%d] %s' "$((right_index + 1))" "${items[$right_index]}")
+    fi
+
+    printf "%-${width}s%s\n" "$left_text" "$right_text"
+  done
+}
+
 list_updates() {
   if (( ${#UPGRADABLE[@]} == 0 )); then
     echo "No upgradable packages loaded. Run a refresh first."
@@ -144,9 +185,40 @@ list_updates() {
   fi
 
   echo "${BOLD}Upgradable packages${RESET}"
-  for i in "${!UPGRADABLE[@]}"; do
-    printf '[%d] %s\n' "$((i + 1))" "${UPGRADABLE[$i]}"
+  print_two_columns "${UPGRADABLE[@]}"
+}
+
+select_packages() {
+  local -n items=$1
+  local prompt="$2"
+
+  SELECTED_PACKAGES=()
+  if (( ${#items[@]} == 0 )); then
+    echo "No packages available."
+    return 1
+  fi
+
+  print_two_columns "${items[@]}"
+  echo ""
+  read -r -p "$prompt" selection
+
+  if [[ "$selection" == "q" ]]; then
+    echo "No changes."
+    return 1
+  fi
+
+  mapfile -t selected_indices < <(parse_selection "$selection" "${#items[@]}")
+
+  if (( ${#selected_indices[@]} == 0 )); then
+    echo "No packages selected."
+    return 1
+  fi
+
+  for idx in "${selected_indices[@]}"; do
+    SELECTED_PACKAGES+=("${items[$((idx - 1))]}")
   done
+
+  return 0
 }
 
 select_and_upgrade() {
@@ -155,29 +227,12 @@ select_and_upgrade() {
     return 0
   fi
 
-  list_updates
-  echo ""
-  read -r -p "Select packages (e.g. 1 3 5-7, a=all, q=quit): " selection
-
-  if [[ "$selection" == "q" ]]; then
-    echo "No changes."
+  if ! select_packages UPGRADABLE "Select packages (e.g. 1 3 5-7, a=all, q=quit): "; then
     return 0
   fi
 
-  mapfile -t selected_indices < <(parse_selection "$selection" "${#UPGRADABLE[@]}")
-
-  if (( ${#selected_indices[@]} == 0 )); then
-    echo "No packages selected."
-    return 0
-  fi
-
-  local -a selected_packages=()
-  for idx in "${selected_indices[@]}"; do
-    selected_packages+=("${UPGRADABLE[$((idx - 1))]}")
-  done
-
   echo ""
-  echo "Will update: ${selected_packages[*]}"
+  echo "Will update: ${SELECTED_PACKAGES[*]}"
   read -r -p "Proceed? [y/N]: " confirm
 
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
@@ -185,19 +240,99 @@ select_and_upgrade() {
     return 0
   fi
 
-  spinner_run "Upgrading selected packages" run_cmd apt-get install --only-upgrade -y "${selected_packages[@]}"
+  spinner_run "Upgrading selected packages" run_cmd apt-get install --only-upgrade -y "${SELECTED_PACKAGES[@]}"
+}
+
+dry_run_preview() {
+  if (( ${#UPGRADABLE[@]} == 0 )); then
+    echo "No package list loaded. Run refresh first."
+    return 0
+  fi
+
+  if ! select_packages UPGRADABLE "Select packages for dry-run (e.g. 1 3 5-7, a=all, q=quit): "; then
+    return 0
+  fi
+
+  echo ""
+  echo "Dry-run for: ${SELECTED_PACKAGES[*]}"
+  echo ""
+  run_cmd apt-get install --only-upgrade --dry-run "${SELECTED_PACKAGES[@]}"
+}
+
+manage_holds() {
+  while true; do
+    echo "${BOLD}Hold manager${RESET}"
+    echo "  1) Hold packages from upgradable list"
+    echo "  2) Unhold packages"
+    echo "  3) View held packages"
+    echo "  4) Back"
+    echo ""
+    read -r -p "Choose an option [1-4]: " hold_choice
+    echo ""
+
+    case "$hold_choice" in
+      1)
+        if (( ${#UPGRADABLE[@]} == 0 )); then
+          echo "No package list loaded. Run refresh first."
+          pause
+          continue
+        fi
+        if select_packages UPGRADABLE "Select packages to hold (e.g. 1 3 5-7, a=all, q=quit): "; then
+          echo "Holding: ${SELECTED_PACKAGES[*]}"
+          run_cmd apt-mark hold "${SELECTED_PACKAGES[@]}"
+        fi
+        pause
+        ;;
+      2)
+        mapfile -t held < <(apt-mark showhold 2>/dev/null | sort -u)
+        if (( ${#held[@]} == 0 )); then
+          echo "No held packages."
+          pause
+          continue
+        fi
+        if select_packages held "Select packages to unhold (e.g. 1 3 5-7, a=all, q=quit): "; then
+          echo "Unholding: ${SELECTED_PACKAGES[*]}"
+          run_cmd apt-mark unhold "${SELECTED_PACKAGES[@]}"
+        fi
+        pause
+        ;;
+      3)
+        mapfile -t held < <(apt-mark showhold 2>/dev/null | sort -u)
+        if (( ${#held[@]} == 0 )); then
+          echo "No held packages."
+        else
+          echo "${BOLD}Held packages${RESET}"
+          print_two_columns "${held[@]}"
+        fi
+        pause
+        ;;
+      4)
+        return 0
+        ;;
+      *)
+        echo "Invalid option."
+        pause
+        ;;
+    esac
+  done
 }
 
 main_menu() {
+  if [[ "$AUTO_REFRESH_ON_START" -eq 1 ]]; then
+    refresh_updates
+  fi
+
   while true; do
     print_banner
     echo "${BOLD}Menu${RESET}"
     echo "  1) Refresh update list"
     echo "  2) View upgradable packages"
     echo "  3) Select and upgrade"
-    echo "  4) Exit"
+    echo "  4) Dry-run preview"
+    echo "  5) Hold manager"
+    echo "  6) Exit"
     echo ""
-    read -r -p "Choose an option [1-4]: " choice
+    read -r -p "Choose an option [1-6]: " choice
     echo ""
 
     case "$choice" in
@@ -214,6 +349,13 @@ main_menu() {
         pause
         ;;
       4)
+        dry_run_preview
+        pause
+        ;;
+      5)
+        manage_holds
+        ;;
+      6)
         echo "Bye."
         exit 0
         ;;
