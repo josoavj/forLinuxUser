@@ -10,12 +10,18 @@ Small interactive CLI to upgrade selected apt packages that are currently upgrad
 
 ## How it works
 
-- Runs `apt-get update`.
+- Runs `apt-get update` when you choose refresh.
 - Lists packages from `apt list --upgradable`.
 - Lets you select indices or ranges (e.g., `1 3 5-7`, `a` for all).
 - Runs `apt-get install --only-upgrade` for the selected packages.
+- Includes a dry-run preview and a hold manager (apt-mark hold/unhold).
+
 
 ## Notes
+
+- La config est integree en haut du script (pas de fichier externe).
+
+- Config is embedded at the top of the script (no external file).
 
 - Uses `sudo` if you are not root.
 - Dependencies required by selected packages are upgraded as needed by apt.
@@ -34,10 +40,12 @@ Petit outil CLI interactif pour mettre a jour des paquets apt precis parmi ceux 
 
 ## Comment ca marche
 
-- Lance `apt-get update`.
+- Lance `apt-get update` quand vous choisissez l'option de refresh.
 - Liste les paquets via `apt list --upgradable`.
 - Permet de selectionner des indices ou des plages (ex: `1 3 5-7`, `a` pour tout).
 - Lance `apt-get install --only-upgrade` pour les paquets choisis.
+- Inclut un dry-run et un gestionnaire de hold (apt-mark hold/unhold).
+
 
 ## Notes
 
