@@ -46,6 +46,13 @@ run_cmd() {
   fi
 }
 
+ensure_sudo() {
+  if [[ $(id -u) -ne 0 ]]; then
+    sudo -k
+    sudo -v
+  fi
+}
+
 spinner_run() {
   local -r msg="$1"
   shift
@@ -146,6 +153,7 @@ parse_selection() {
 }
 
 refresh_updates() {
+  ensure_sudo
   spinner_run "Checking for updates" run_cmd apt-get update
   LAST_REFRESH=$(date '+%Y-%m-%d %H:%M:%S')
   mapfile -t UPGRADABLE < <(apt list --upgradable 2>/dev/null | tail -n +2 | awk -F/ '{print $1}' | sort -u)
@@ -240,7 +248,30 @@ select_and_upgrade() {
     return 0
   fi
 
-  spinner_run "Upgrading selected packages" run_cmd apt-get install --only-upgrade -y "${SELECTED_PACKAGES[@]}"
+  ensure_sudo
+  echo "${BOLD}Upgrading...${RESET}"
+
+  local log_file
+  log_file=$(mktemp)
+  if run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade -y "${SELECTED_PACKAGES[@]}" | tee "$log_file"; then
+    echo ""
+    echo "${FG_GREEN}${BOLD}Summary${RESET}"
+    echo "Updated: ${#SELECTED_PACKAGES[@]} package(s)"
+    echo "Status: success"
+  else
+    echo ""
+    echo "${FG_RED}${BOLD}Summary${RESET}"
+    echo "Updated: ${#SELECTED_PACKAGES[@]} package(s)"
+    echo "Status: failed"
+  fi
+
+  local err_count
+  err_count=$(grep -E '^(E:|Err:)' "$log_file" | wc -l | tr -d ' ')
+  if [[ "$err_count" != "0" ]]; then
+    echo "Errors detected: $err_count"
+    grep -E '^(E:|Err:)' "$log_file" | head -n 10
+  fi
+  rm -f "$log_file"
 }
 
 dry_run_preview() {
@@ -256,7 +287,8 @@ dry_run_preview() {
   echo ""
   echo "Dry-run for: ${SELECTED_PACKAGES[*]}"
   echo ""
-  run_cmd apt-get install --only-upgrade --dry-run "${SELECTED_PACKAGES[@]}"
+  ensure_sudo
+  run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 install --only-upgrade --dry-run "${SELECTED_PACKAGES[@]}"
 }
 
 manage_holds() {
@@ -278,6 +310,7 @@ manage_holds() {
           continue
         fi
         if select_packages UPGRADABLE "Select packages to hold (e.g. 1 3 5-7, a=all, q=quit): "; then
+          ensure_sudo
           echo "Holding: ${SELECTED_PACKAGES[*]}"
           run_cmd apt-mark hold "${SELECTED_PACKAGES[@]}"
         fi
@@ -291,6 +324,7 @@ manage_holds() {
           continue
         fi
         if select_packages held "Select packages to unhold (e.g. 1 3 5-7, a=all, q=quit): "; then
+          ensure_sudo
           echo "Unholding: ${SELECTED_PACKAGES[*]}"
           run_cmd apt-mark unhold "${SELECTED_PACKAGES[@]}"
         fi
@@ -317,6 +351,27 @@ manage_holds() {
   done
 }
 
+show_help() {
+  clear
+  echo "${FG_BLUE}${BOLD}apt-updater - Help${RESET}"
+  echo ""
+  echo "${BOLD}EN${RESET}"
+  echo "- Refresh: runs apt update and loads the upgradable list."
+  echo "- View: shows upgradable packages in two columns."
+  echo "- Upgrade: select packages and run only-upgrade."
+  echo "- Dry-run: simulate an upgrade without changes."
+  echo "- Hold: prevent upgrades for selected packages (apt-mark hold)."
+  echo ""
+  echo "${BOLD}FR${RESET}"
+  echo "- Refresh : lance apt update et charge la liste upgradable."
+  echo "- View : affiche les paquets en deux colonnes."
+  echo "- Upgrade : selection des paquets puis only-upgrade."
+  echo "- Dry-run : simulation sans modification."
+  echo "- Hold : bloque des paquets (apt-mark hold)."
+  echo ""
+  pause
+}
+
 main_menu() {
   if [[ "$AUTO_REFRESH_ON_START" -eq 1 ]]; then
     refresh_updates
@@ -330,9 +385,10 @@ main_menu() {
     echo "  3) Select and upgrade"
     echo "  4) Dry-run preview"
     echo "  5) Hold manager"
-    echo "  6) Exit"
+    echo "  6) Help"
+    echo "  7) Exit"
     echo ""
-    read -r -p "Choose an option [1-6]: " choice
+    read -r -p "Choose an option [1-7]: " choice
     echo ""
 
     case "$choice" in
@@ -356,6 +412,9 @@ main_menu() {
         manage_holds
         ;;
       6)
+        show_help
+        ;;
+      7)
         echo "Bye."
         exit 0
         ;;
