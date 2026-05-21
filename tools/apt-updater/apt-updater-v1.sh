@@ -473,6 +473,7 @@ do_select_and_upgrade_impl() {
     return
   fi
   log INFO "Paquets mis à jour : ${pkgs[*]}"
+  echo "  ${FG_GREEN}OK: mise a jour terminee.${RESET}"
   
   UPGRADABLE=()
   pause
@@ -499,6 +500,7 @@ do_dry_run_impl() {
       pause
       return
     fi
+    echo "  ${FG_GREEN}OK: simulation terminee.${RESET}"
     pause
   fi
 }
