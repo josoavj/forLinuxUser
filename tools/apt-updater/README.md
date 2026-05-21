@@ -15,6 +15,7 @@ Small interactive CLI to upgrade selected apt packages that are currently upgrad
 - Lets you select indices or ranges (e.g., `1 3 5-7`, `a` for all).
 - Runs `apt-get install --only-upgrade` for the selected packages.
 - Includes a dry-run preview and a hold manager (apt-mark hold/unhold).
+- Language can be switched from the main menu.
 
 
 ## Notes
@@ -45,6 +46,7 @@ Petit outil CLI interactif pour mettre a jour des paquets apt precis parmi ceux 
 - Permet de selectionner des indices ou des plages (ex: `1 3 5-7`, `a` pour tout).
 - Lance `apt-get install --only-upgrade` pour les paquets choisis.
 - Inclut un dry-run et un gestionnaire de hold (apt-mark hold/unhold).
+- La langue se change depuis le menu principal.
 
 
 ## Notes
