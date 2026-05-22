@@ -162,6 +162,13 @@ msg() {
                                           || echo "apt-get update failed. Check your connection or sources." ;;
     refresh_uptodate)   [[ $lang == fr ]] && echo "Système à jour — aucun paquet à mettre à jour." \
                                           || echo "System is up to date — nothing to upgrade." ;;
+    upgrade_title)      [[ $lang == fr ]] && echo "Installation des mises à jour"                || echo "Installing upgrades" ;;
+    dryrun_title)       [[ $lang == fr ]] && echo "Simulation de mise à jour"                    || echo "Upgrade dry-run" ;;
+    upgrade_step1)      [[ $lang == fr ]] && echo "Authentification sudo"                         || echo "Sudo authentication" ;;
+    upgrade_step2)      [[ $lang == fr ]] && echo "Téléchargement et installation"               || echo "Download and install" ;;
+    upgrade_step3)      [[ $lang == fr ]] && echo "Finalisation"                                 || echo "Finalising" ;;
+    upgrade_running)    [[ $lang == fr ]] && echo "Installation en cours…  Ctrl-C pour annuler" || echo "Installing…  Ctrl-C to cancel" ;;
+    upgrade_count_label)[[ $lang == fr ]] && echo "opération(s) apt détectée(s)"                || echo "apt operation(s) detected" ;;
     *) echo "$key" ;;
   esac
 }
@@ -767,8 +774,193 @@ pause() {
 }
 
 # ─────────────────────────────────────────────
-#  UPGRADE
+#  UPGRADE — UI ANIMÉE
 # ─────────────────────────────────────────────
+
+# Positions des lignes pour l'écran d'upgrade :
+#   0     : marge
+#   1     : titre
+#   3     : étape 1 — sudo
+#   5     : étape 2 — téléchargement / install
+#   7     : étape 3 — nettoyage / finalisation
+#   9     : ligne de log défilant (sortie apt)
+#   11    : barre de progression
+#   13    : compteur paquets traités
+#   15    : statusbar
+_upgrade_ROW_TITLE=1
+_upgrade_ROW_STEP1=3
+_upgrade_ROW_STEP2=5
+_upgrade_ROW_STEP3=7
+_upgrade_ROW_LOG=9
+_upgrade_ROW_BAR=11
+_upgrade_ROW_COUNT=13
+_upgrade_ROW_STATUS=15
+
+_upgrade_draw_step() {
+  local row="$1" state="$2" label="$3"
+  local icon color
+  case "$state" in
+    0) icon="○" ; color="${DIM}" ;;
+    1) icon="◉" ; color="${FG_CYAN}${BOLD}" ;;
+    2) icon="✓" ; color="${FG_GREEN}${BOLD}" ;;
+    3) icon="✗" ; color="${FG_RED}${BOLD}" ;;
+  esac
+  tput cup "$row" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s%s%s  %s' "$color" "$icon" "${RESET}" "$label"
+}
+
+_upgrade_draw_bar() {
+  local pct="$1"
+  local inner=$(( TERM_COLS - 6 ))
+  (( inner < 10 )) && inner=10
+  local filled=$(( pct * inner / 100 ))
+  local empty=$(( inner - filled ))
+  tput cup "$_upgrade_ROW_BAR" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s[%s%s%s%s%s]%s  %s%3d%%%s' \
+    "${DIM}" \
+    "${RESET}${FG_GREEN}${BOLD}" \
+    "$(printf '%*s' "$filled" '' | tr ' ' '█')" \
+    "${RESET}${DIM}" \
+    "$(printf '%*s' "$empty"  '' | tr ' ' '░')" \
+    "${RESET}${DIM}" "${RESET}" \
+    "${FG_GREEN}${BOLD}" "$pct" "${RESET}"
+}
+
+_upgrade_draw_log() {
+  local line="$1"
+  local maxlen=$(( TERM_COLS - 4 ))
+  (( maxlen < 10 )) && maxlen=10
+  if (( ${#line} > maxlen )); then line="${line:0:$(( maxlen - 1 ))}…"; fi
+  tput cup "$_upgrade_ROW_LOG" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s%s%s' "${DIM}" "$line" "${RESET}"
+}
+
+_upgrade_draw_count() {
+  local done_n="$1" total_n="$2"
+  tput cup "$_upgrade_ROW_COUNT" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s%d / %d%s  %s' \
+    "${FG_CYAN}${BOLD}" "$done_n" "$total_n" "${RESET}" \
+    "$(msg upgrade_count_label)"
+}
+
+_upgrade_draw_frame() {
+  local title_key="$1"   # upgrade_title ou dryrun_title
+  _check_resize
+  tput clear 2>/dev/null || clear
+  tput civis 2>/dev/null || true
+
+  tput cup "$_upgrade_ROW_TITLE" 0
+  printf '  %s%s%s  %s·%s  %s' \
+    "${FG_BLUE}${BOLD}" "$(msg app_name)" "${RESET}" \
+    "${DIM}" "${RESET}" \
+    "${DIM}$(msg $title_key)${RESET}"
+
+  _upgrade_draw_step "$_upgrade_ROW_STEP1" 0 "$(msg upgrade_step1)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP2" 0 "$(msg upgrade_step2)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP3" 0 "$(msg upgrade_step3)"
+  _upgrade_draw_bar 0
+
+  tput cup "$_upgrade_ROW_STATUS" 0
+  _statusbar "$(msg upgrade_running)"
+}
+
+# Lance apt-get en arrière-plan, anime la progression en parsant sa sortie.
+# $1 = mode : "real" ou "dry"
+# $2..N = paquets
+_upgrade_run_apt() {
+  local mode="$1"; shift
+  local -a pkgs=("$@")
+  local total_pkgs=${#pkgs[@]}
+
+  local tmpdir; tmpdir=$(mktemp -d)
+  local pipe_out="${tmpdir}/apt.out"
+  local lastlog_file="${tmpdir}/lastlog"
+  local done_file="${tmpdir}/done_count"
+  local apt_exit_file="${tmpdir}/apt_exit"
+  echo 0 > "$done_file"
+  mkfifo "$pipe_out"
+
+  # Lancer apt-get
+  if [[ "$mode" == "dry" ]]; then
+    run_cmd apt-get -o Dpkg::Progress-Fancy=0 \
+      install --only-upgrade --dry-run -y "${pkgs[@]}" \
+      > "$pipe_out" 2>&1 &
+  else
+    run_cmd apt-get -o Dpkg::Progress-Fancy=0 \
+      install --only-upgrade -y "${pkgs[@]}" \
+      > "$pipe_out" 2>&1 &
+  fi
+  local apt_pid=$!
+
+  # Lecteur du pipe : parse la sortie apt et met à jour les compteurs
+  (
+    local done_count=0
+    while IFS= read -r aptline; do
+      printf '%s\n' "$aptline" > "$lastlog_file"
+      # Détecter les lignes de progression dpkg :
+      # "Unpacking foo …", "Setting up foo …", "Get:N foo …"
+      if [[ "$aptline" =~ ^(Unpacking|Setting\ up|Get:|Preparing\ to\ unpack) ]]; then
+        (( done_count++ )) || true
+        echo "$done_count" > "$done_file"
+      fi
+    done < "$pipe_out"
+    wait "$apt_pid" 2>/dev/null || true
+    echo $? > "$apt_exit_file"
+  ) &
+  local reader_pid=$!
+
+  # Animation : spinner + barre + log défilant
+  local fi=0
+  local frames=('◉' '◎' '◉' '◌')
+  # Estimation : chaque paquet génère ~3 lignes (Get + Unpacking + Setting up)
+  local estimated=$(( total_pkgs * 3 ))
+  (( estimated < 1 )) && estimated=1
+
+  while kill -0 "$apt_pid" 2>/dev/null; do
+    local done_n=0
+    [[ -f "$done_file" ]] && done_n=$(cat "$done_file" 2>/dev/null || echo 0)
+
+    local pct=$(( done_n * 95 / estimated ))
+    (( pct > 95 )) && pct=95
+
+    # Log défilant
+    if [[ -f "$lastlog_file" ]]; then
+      local lastline
+      lastline=$(cat "$lastlog_file" 2>/dev/null || true)
+      [[ -n "$lastline" ]] && _upgrade_draw_log "$lastline"
+    fi
+
+    # Spinner sur étape 2
+    tput cup "$_upgrade_ROW_STEP2" 0
+    tput el 2>/dev/null || printf '\033[2K'
+    printf '  %s%s%s  %s' \
+      "${FG_CYAN}${BOLD}" "${frames[$fi]}" "${RESET}" "$(msg upgrade_step2)"
+
+    _upgrade_draw_bar "$pct"
+    _upgrade_draw_count "$done_n" "$total_pkgs"
+
+    fi=$(( (fi + 1) % 4 ))
+    sleep 0.12
+  done
+
+  wait "$reader_pid" 2>/dev/null || true
+
+  # Lire le code de sortie
+  local apt_exit=0
+  [[ -f "$apt_exit_file" ]] && apt_exit=$(cat "$apt_exit_file" 2>/dev/null || echo 1)
+
+  # Vider log défilant
+  tput cup "$_upgrade_ROW_LOG" 0
+  tput el 2>/dev/null || printf '\033[2K'
+
+  rm -rf "$tmpdir"
+  return "$apt_exit"
+}
+
 do_select_and_upgrade() {
   with_errexit_disabled do_select_and_upgrade_impl
 }
@@ -778,68 +970,85 @@ do_select_and_upgrade_impl() {
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
 
-  ensure_sudo || { pause; return; }
-
+  # Sélection des paquets (avant sudo — pas besoin de privilèges pour lire)
   if ! get_user_selection "$(msg upgradable_title)" UPGRADABLE UPGRADABLE_TYPES; then
     return
   fi
-
   if (( ${#SELECTED_IDX[@]} == 0 )); then
     echo "  $(msg no_selected)"; pause; return
   fi
 
+  # Construire la liste des paquets sélectionnés
   local -a pkgs=()
+  local -a sel_cur=() sel_new=()
+  for idx in "${SELECTED_IDX[@]}"; do
+    pkgs+=("${UPGRADABLE[$idx]}")
+    sel_cur+=("${UPGRADABLE_VERSIONS_CUR[$idx]:-?}")
+    sel_new+=("${UPGRADABLE_VERSIONS_NEW[$idx]:-?}")
+  done
+
+  # ── Écran de confirmation ─────────────────────────────────────────────
   _check_resize
   tput clear 2>/dev/null || clear
   _header
   echo "  ${BOLD}$(msg will_update):${RESET}"
-
-  for idx in "${SELECTED_IDX[@]}"; do
-    pkgs+=("${UPGRADABLE[$idx]}")
-    # FIX: accès sécurisé aux tableaux — utiliser ${arr[idx]:-?}
-    # pour éviter que set -u ne cause un crash si l'index est hors bornes
-    local cur_v="${UPGRADABLE_VERSIONS_CUR[$idx]:-?}"
-    local new_v="${UPGRADABLE_VERSIONS_NEW[$idx]:-?}"
-    echo "    ${FG_GREEN}·${RESET} ${UPGRADABLE[$idx]} ${DIM}${cur_v}${RESET} -> ${FG_GREEN}${new_v}${RESET}"
+  echo ""
+  for (( i=0; i<${#pkgs[@]}; i++ )); do
+    local sec_badge=""
+    local pkg_type="${UPGRADABLE_TYPES[${SELECTED_IDX[$i]}]:-normal}"
+    [[ "$pkg_type" == "security" ]] && sec_badge="  ${FG_RED}${BOLD}[sec]${RESET}"
+    printf '  %s·%s  %-32s %s%s%s → %s%s%s%s\n' \
+      "${FG_GREEN}${BOLD}" "${RESET}" \
+      "${pkgs[$i]}" \
+      "${DIM}" "${sel_cur[$i]}" "${RESET}" \
+      "${FG_GREEN}${BOLD}" "${sel_new[$i]}" "${RESET}" \
+      "$sec_badge"
   done
   echo ""
-
   show_size_info "${pkgs[@]}"
   echo ""
 
   if [[ "$DRY_RUN_ONLY" -eq 1 ]]; then
-    # FIX: message passé par msg()
     echo "  ${FG_YELLOW}$(msg dryrun_disabled)${RESET}"
     pause; return
   fi
 
+  # Confirmation avec timeout
   if ! confirm_timeout "  $(msg proceed_prompt)" 30; then
     echo "  $(msg canceled)"; pause; return
   fi
 
-  echo ""
-  echo "  ${BOLD}$(msg upgrading)${RESET}"
-  echo ""
+  # ── Sudo juste avant l'opération apt ────────────────────────────────
+  # On invalide le cache pour forcer une saisie fraîche — l'utilisateur
+  # doit confirmer explicitement qu'il autorise l'écriture sur le système.
+  sudo -k
+  if ! ensure_sudo; then pause; return; fi
 
-  if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 \
-       install --only-upgrade -y "${pkgs[@]}" < /dev/tty; then
+  # ── Écran d'upgrade animé ────────────────────────────────────────────
+  _upgrade_draw_frame "upgrade_title"
+  _upgrade_draw_step "$_upgrade_ROW_STEP1" 2 "$(msg upgrade_step1)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP2" 1 "$(msg upgrade_step2)"
+  _upgrade_draw_bar 0
+
+  if ! _upgrade_run_apt "real" "${pkgs[@]}"; then
+    _upgrade_draw_step "$_upgrade_ROW_STEP2" 3 "$(msg upgrade_step2)"
+    _upgrade_draw_bar 0
+    tput cup $(( _upgrade_ROW_STATUS + 2 )) 0
+    echo ""
     echo "  ${FG_RED}$(msg update_failed)${RESET}"
     log ERROR "Échec mise à jour : ${pkgs[*]}"
-    pause
-    return
+    tput cnorm 2>/dev/null || true
+    pause; return
   fi
 
-  log INFO "Paquets mis à jour : ${pkgs[*]}"
-  # FIX: message passé par msg()
-  echo "  ${FG_GREEN}$(msg upgrade_ok)${RESET}"
+  _upgrade_draw_step "$_upgrade_ROW_STEP2" 2 "$(msg upgrade_step2)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP3" 1 "$(msg upgrade_step3)"
+  _upgrade_draw_bar 98
 
-  # Retirer les paquets mis à jour de la liste locale
-  # FIX: reconstruire les tableaux plutôt que de les vider
-  # — conserve les paquets non sélectionnés
+  # Étape 3 : nettoyage de la liste locale
   local -a new_upgradable=() new_cur=() new_new=() new_types=()
   local -A upgraded=()
   for p in "${pkgs[@]}"; do upgraded["$p"]=1; done
-
   for (( i=0; i<${#UPGRADABLE[@]}; i++ )); do
     if [[ -z "${upgraded[${UPGRADABLE[$i]}]+x}" ]]; then
       new_upgradable+=("${UPGRADABLE[$i]}")
@@ -853,11 +1062,23 @@ do_select_and_upgrade_impl() {
   UPGRADABLE_VERSIONS_NEW=("${new_new[@]+"${new_new[@]}"}")
   UPGRADABLE_TYPES=("${new_types[@]+"${new_types[@]}"}")
 
+  _upgrade_draw_step "$_upgrade_ROW_STEP3" 2 "$(msg upgrade_step3)"
+  _upgrade_draw_bar 100
+  _upgrade_draw_count "${#pkgs[@]}" "${#pkgs[@]}"
+
+  tput cup $(( _upgrade_ROW_BAR + 2 )) 0
+  printf '  %s✓ %s%s\n' "${FG_GREEN}${BOLD}" "$(msg upgrade_ok)" "${RESET}"
+
+  tput cup "$_upgrade_ROW_STATUS" 0
+  _statusbar "$(msg refresh_done_hint)"
+
+  log INFO "Paquets mis à jour : ${pkgs[*]}"
+  tput cnorm 2>/dev/null || true
   pause
 }
 
 # ─────────────────────────────────────────────
-#  DRY-RUN
+#  DRY-RUN — UI ANIMÉE
 # ─────────────────────────────────────────────
 do_dry_run() {
   with_errexit_disabled do_dry_run_impl
@@ -868,23 +1089,50 @@ do_dry_run_impl() {
     echo "  ${FG_YELLOW}$(msg no_list_loaded)${RESET}"; pause; return
   fi
 
-  ensure_sudo || { pause; return; }
-
-  if get_user_selection "$(msg upgradable_title) (Dry-Run)" UPGRADABLE UPGRADABLE_TYPES; then
-    local -a pkgs=()
-    for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
-    echo ""
-    if ! run_cmd apt-get --show-progress -o Dpkg::Progress-Fancy=1 \
-         install --only-upgrade --dry-run "${pkgs[@]}" < /dev/tty; then
-      echo "  ${FG_RED}$(msg dryrun_failed)${RESET}"
-      log ERROR "Échec dry-run : ${pkgs[*]}"
-      pause
-      return
-    fi
-    # FIX: message passé par msg()
-    echo "  ${FG_GREEN}$(msg dryrun_ok)${RESET}"
-    pause
+  if ! get_user_selection "$(msg upgradable_title) (Dry-Run)" UPGRADABLE UPGRADABLE_TYPES; then
+    return
   fi
+  if (( ${#SELECTED_IDX[@]} == 0 )); then
+    echo "  $(msg no_selected)"; pause; return
+  fi
+
+  local -a pkgs=()
+  for idx in "${SELECTED_IDX[@]}"; do pkgs+=("${UPGRADABLE[$idx]}"); done
+
+  # Sudo juste avant l'opération — même règle que pour le vrai upgrade
+  sudo -k
+  if ! ensure_sudo; then pause; return; fi
+
+  _upgrade_draw_frame "dryrun_title"
+  _upgrade_draw_step "$_upgrade_ROW_STEP1" 2 "$(msg upgrade_step1)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP2" 1 "$(msg upgrade_step2)"
+  _upgrade_draw_bar 0
+
+  if ! _upgrade_run_apt "dry" "${pkgs[@]}"; then
+    _upgrade_draw_step "$_upgrade_ROW_STEP2" 3 "$(msg upgrade_step2)"
+    _upgrade_draw_bar 0
+    tput cup $(( _upgrade_ROW_STATUS + 2 )) 0
+    echo ""
+    echo "  ${FG_RED}$(msg dryrun_failed)${RESET}"
+    log ERROR "Échec dry-run : ${pkgs[*]}"
+    tput cnorm 2>/dev/null || true
+    pause; return
+  fi
+
+  _upgrade_draw_step "$_upgrade_ROW_STEP2" 2 "$(msg upgrade_step2)"
+  _upgrade_draw_step "$_upgrade_ROW_STEP3" 2 "$(msg upgrade_step3)"
+  _upgrade_draw_bar 100
+  _upgrade_draw_count "${#pkgs[@]}" "${#pkgs[@]}"
+
+  tput cup $(( _upgrade_ROW_BAR + 2 )) 0
+  printf '  %s✓ %s%s\n' "${FG_GREEN}${BOLD}" "$(msg dryrun_ok)" "${RESET}"
+
+  tput cup "$_upgrade_ROW_STATUS" 0
+  _statusbar "$(msg refresh_done_hint)"
+
+  log INFO "Dry-run terminé : ${pkgs[*]}"
+  tput cnorm 2>/dev/null || true
+  pause
 }
 
 # ─────────────────────────────────────────────
@@ -896,7 +1144,6 @@ do_hold_manager() {
     tput clear 2>/dev/null || clear
     _header
     _section "$(msg hold_manager)"
-    # FIX: libellés des options passés par msg()
     echo "  ${BOLD}1${RESET}  $(msg hold_apply)"
     echo "  ${BOLD}2${RESET}  $(msg hold_remove)"
     echo "  ${BOLD}3${RESET}  $(msg hold_view)"
@@ -924,8 +1171,6 @@ do_hold_manager() {
         if (( ${#HELD_PACKAGES[@]} == 0 )); then
           echo "  ${FG_YELLOW}$(msg no_held)${RESET}"; pause; continue
         fi
-        # FIX: construire le tableau de types associé plutôt qu'une
-        # boucle séparée — les deux tableaux doivent être de même taille
         local -a held_types=()
         for _ in "${HELD_PACKAGES[@]}"; do held_types+=("normal"); done
 
@@ -979,7 +1224,6 @@ select_language() {
   _check_resize
   tput clear 2>/dev/null || clear
   _header
-  # FIX: titre passé par msg()
   _section "$(msg lang_title)"
   echo "  ${BOLD}1${RESET}  English"
   echo "  ${BOLD}2${RESET}  Français"
@@ -1005,8 +1249,6 @@ main_menu() {
 
     local pkg_count="${#UPGRADABLE[@]}"
     local sec_count=0
-    # FIX: tester la taille du tableau avant de boucler — évite
-    # l'expansion en élément vide avec ${arr[@]:-} quand set -u est actif
     if (( ${#UPGRADABLE_TYPES[@]} > 0 )); then
       for t in "${UPGRADABLE_TYPES[@]}"; do
         [[ "$t" == "security" ]] && (( sec_count++ )) || true
@@ -1036,9 +1278,6 @@ main_menu() {
       u) do_select_and_upgrade ;;
       d) do_dry_run ;;
       h) do_hold_manager ;;
-      # : séparer l (logs) et L (langue) en deux branches distinctes
-      # — dans la version originale, l|L absorbait L avant la branche "L",
-      # rendant le changement de langue totalement inaccessible
       l) do_show_logs ;;
       L) select_language ;;
       q) exit 0 ;;
