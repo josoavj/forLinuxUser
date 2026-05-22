@@ -1,55 +1,95 @@
 # apt-updater
 
-Small interactive CLI to upgrade selected apt packages that are currently upgradable.
+> **v3.5** — Gestionnaire de mises à jour apt interactif avec interface animée / Interactive apt upgrade manager with animated UI
 
-## Usage
+Un outil en ligne de commande pour mettre à jour précisément les paquets apt upgradables, avec une interface structurée, des animations en temps réel et une gestion complète depuis le terminal.
 
-```bash
-./apt-updater.sh
-```
-
-## How it works
-
-- Runs `apt-get update` when you choose refresh.
-- Lists packages from `apt list --upgradable`.
-- Lets you select indices or ranges (e.g., `1 3 5-7`, `a` for all).
-- Runs `apt-get install --only-upgrade` for the selected packages.
-- Includes a dry-run preview and a hold manager (apt-mark hold/unhold).
-- Language can be switched from the main menu.
-
-
-## Notes
-
-- La config est integree en haut du script (pas de fichier externe).
-
-- Config is embedded at the top of the script (no external file).
-
-- Uses `sudo` if you are not root.
-- Dependencies required by selected packages are upgraded as needed by apt.
+An interactive CLI to selectively upgrade apt packages, with a structured real-time animated interface and full terminal management.
 
 ---
 
-# apt-updater (FR)
-
-Petit outil CLI interactif pour mettre a jour des paquets apt precis parmi ceux qui sont upgradables.
-
-## Utilisation
+## Utilisation / Usage
 
 ```bash
-./apt-updater.sh
+chmod +x apt-updater.sh
+./apt-updater.sh [options]
 ```
 
-## Comment ca marche
+| Option | Description |
+|---|---|
+| `--no-color` | Désactive les couleurs ANSI / Disable ANSI colors |
+| `--dry-run-only` | Désactive l'upgrade réel, simulation uniquement / Disable real upgrades, simulation only |
+| `--lang=en\|fr` | Force la langue (défaut : auto-détection via `$LANG`) / Force language (default: auto-detect) |
+| `-h`, `--help` | Affiche l'aide / Show help |
 
-- Lance `apt-get update` quand vous choisissez l'option de refresh.
-- Liste les paquets via `apt list --upgradable`.
-- Permet de selectionner des indices ou des plages (ex: `1 3 5-7`, `a` pour tout).
-- Lance `apt-get install --only-upgrade` pour les paquets choisis.
-- Inclut un dry-run et un gestionnaire de hold (apt-mark hold/unhold).
-- La langue se change depuis le menu principal.
+---
 
+## Menu principal / Main menu
+
+| Touche | Action |
+|---|---|
+| `r` | Refresh — synchronise les sources apt et recharge la liste |
+| `v` | Voir la liste des paquets upgradables |
+| `u` | Sélectionner et mettre à jour |
+| `d` | Dry-run — simulation sans écriture |
+| `h` | Gestionnaire de holds (figer / libérer des paquets) |
+| `l` | Historique des logs |
+| `L` | Changer la langue (EN / FR) |
+| `q` | Quitter |
+
+---
+
+## Fonctionnement / How it works
+
+### Refresh
+
+Lance `apt-get update` en arrière-plan via un pipe nommé (`mkfifo`). La sortie n'est jamais affichée brute : chaque ligne `Get:`, `Hit:`, `Ign:` est parsée en temps réel pour alimenter une barre de progression `█░` et une zone de log défilant. L'écran est structuré en trois étapes animées :
+
+1. **Synchronisation des sources apt** — `apt-get update` avec spinner et barre live
+2. **Lecture de la liste upgradable** — `apt list --upgradable` parsé de façon robuste
+3. **Résumé** — nombre de paquets trouvés, dont le nombre de mises à jour de sécurité
+
+Runs `apt-get update` in the background via a named pipe. Output is never shown raw: each `Get:`, `Hit:`, `Ign:` line is parsed in real time to drive a `█░` progress bar and a scrolling log line. Three animated steps are displayed.
+
+### Sélection
+
+La saisie accepte des indices individuels, des plages et des combinaisons : `1 3 5-9`. Les doublons sont automatiquement dédupliqués. Les paquets de sécurité sont marqués `[sec]` en rouge dans la liste et dans l'écran de confirmation.
+
+Input accepts individual indices, ranges, and combinations: `1 3 5-9`. Duplicates are automatically deduplicated. Security packages are flagged `[sec]` in red.
+
+### Upgrade / Dry-run
+
+Après confirmation (prompt avec timeout de 30 s), `sudo` est invalidé puis re-demandé immédiatement avant l'opération apt — l'autorisation est toujours fraîche au moment de l'écriture sur le système. L'upgrade tourne lui aussi en arrière-plan avec la même UI animée : barre verte, compteur d'opérations `N / total`, log défilant. En cas d'échec, l'étape concernée passe en rouge `✗` avec un message explicite.
+
+After confirmation (30 s timeout), `sudo` is explicitly invalidated then re-prompted immediately before the apt operation — authorization is always fresh at write time. The upgrade also runs in the background with the same animated UI. On failure, the relevant step turns red `✗` with an explicit message.
+
+### Hold manager
+
+Permet de figer (`apt-mark hold`) ou libérer (`apt-mark unhold`) des paquets via la même interface de sélection par indices. Affiche la liste des paquets actuellement figés.
+
+Lets you hold or unhold packages via the same index-selection interface.
+
+---
+
+## Logs
+
+Toutes les opérations sont enregistrées dans `~/.cache/apt-updater/history.log` avec horodatage et niveau (`INFO` / `ERROR`). Les 20 dernières entrées sont consultables depuis le menu (`l`).
+
+All operations are logged to `~/.cache/apt-updater/history.log` with timestamp and level. The last 20 entries are viewable from the menu.
+
+---
+
+## Dépendances / Dependencies
+
+Bash ≥ 4.3 · `apt` · `sudo` · `tput` · `mkfifo` · `sed` · `tail`
+
+Toutes présentes par défaut sur Debian/Ubuntu. / All present by default on Debian/Ubuntu.
+
+---
 
 ## Notes
 
-- Utilise `sudo` si vous n'etes pas root.
-- Les dependances necessaires aux paquets choisis sont mises a jour par apt.
+- Aucun fichier de configuration externe — tout est dans le script. / No external config file — everything is embedded in the script.
+- `sudo` est utilisé automatiquement si vous n'êtes pas root, et re-demandé avant chaque opération apt. / `sudo` is used automatically if not root, and re-prompted before every apt operation.
+- Le terminal est redimensionnable en cours d'utilisation (gestion `SIGWINCH` non-bloquante). / Terminal can be resized at any time (non-blocking `SIGWINCH` handling).
+- Compatible `--no-color` pour les environnements sans support ANSI (logs, CI). / `--no-color` compatible for ANSI-less environments.
