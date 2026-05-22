@@ -115,7 +115,7 @@ msg() {
     no_selected)        [[ $lang == fr ]] && echo "Aucun paquet sélectionné."                    || echo "No packages selected." ;;
     will_update)        [[ $lang == fr ]] && echo "Mise à jour de"                               || echo "Will upgrade" ;;
     proceed_prompt)     [[ $lang == fr ]] && echo "Continuer ? [o/N] "                           || echo "Proceed? [y/N] " ;;
-    # .: regex stockée dans une variable locale pour éviter tout problème d'interprétation
+    # FIX: regex stockée dans une variable locale pour éviter tout problème d'interprétation
     confirm_regex)      [[ $lang == fr ]] && echo '^[OoYy]$'                                     || echo '^[Yy]$' ;;
     canceled)           [[ $lang == fr ]] && echo "Annulé."                                      || echo "Canceled." ;;
     upgrading)          [[ $lang == fr ]] && echo "Mise à jour…"                                 || echo "Upgrading…" ;;
@@ -152,6 +152,16 @@ msg() {
                                           || echo "[Simulation Mode Active] Real upgrade disabled." ;;
     log_none)           [[ $lang == fr ]] && echo "Pas d'historique de log trouvé."              || echo "No log history found." ;;
     lang_title)         [[ $lang == fr ]] && echo "Langue / Language"                            || echo "Language / Langue" ;;
+    refresh_title)      [[ $lang == fr ]] && echo "Mise à jour des sources"                      || echo "Updating package sources" ;;
+    refresh_step1)      [[ $lang == fr ]] && echo "Synchronisation des sources apt"              || echo "Synchronising apt sources" ;;
+    refresh_step2)      [[ $lang == fr ]] && echo "Lecture de la liste upgradable"               || echo "Reading upgradable list" ;;
+    refresh_step3)      [[ $lang == fr ]] && echo "Analyse terminée"                             || echo "Analysis complete" ;;
+    refresh_running)    [[ $lang == fr ]] && echo "Mise à jour en cours…  Ctrl-C pour annuler"  || echo "Refreshing…  Ctrl-C to cancel" ;;
+    refresh_done_hint)  [[ $lang == fr ]] && echo "Entrée pour continuer"                        || echo "Press Enter to continue" ;;
+    refresh_apt_failed) [[ $lang == fr ]] && echo "apt-get update a échoué. Vérifiez votre connexion ou les sources." \
+                                          || echo "apt-get update failed. Check your connection or sources." ;;
+    refresh_uptodate)   [[ $lang == fr ]] && echo "Système à jour — aucun paquet à mettre à jour." \
+                                          || echo "System is up to date — nothing to upgrade." ;;
     *) echo "$key" ;;
   esac
 }
@@ -195,7 +205,7 @@ with_errexit_disabled() {
 ensure_sudo() {
   if [[ $(id -u) -ne 0 ]]; then
     echo " "
-    # .: ne pas invalider le cache si déjà valide — évite de demander
+    # FIX: ne pas invalider le cache si déjà valide — évite de demander
     # le mot de passe inutilement. On tente -v d'abord, on invalide
     # seulement en cas d'échec pour forcer une vraie saisie.
     if ! sudo -vn 2>/dev/null; then
@@ -222,29 +232,246 @@ LAST_REFRESH=""
 SELECTED_IDX=()
 
 # ─────────────────────────────────────────────
-#  REFRESH
+#  REFRESH — UI ANIMÉE
 # ─────────────────────────────────────────────
+
+# Dessine le cadre statique de la page refresh (titre + 3 étapes + zone log)
+# Positions des lignes (0-based depuis le haut de l'écran) :
+#   0-2   : marges
+#   3     : titre
+#   5     : étape 1 — apt-get update
+#   6     : étape 2 — lecture de la liste
+#   7     : étape 3 — résumé
+#   9     : ligne de log défilant
+#   11    : barre de progression
+#   13    : statusbar
+_refresh_ROW_TITLE=2
+_refresh_ROW_STEP1=5
+_refresh_ROW_STEP2=7
+_refresh_ROW_STEP3=9
+_refresh_ROW_LOG=11
+_refresh_ROW_BAR=13
+_refresh_ROW_STATUS=15
+
+# États des étapes : 0=en attente  1=en cours  2=ok  3=erreur
+_refresh_draw_frame() {
+  _check_resize
+  tput clear 2>/dev/null || clear
+  tput civis 2>/dev/null || true   # masquer le curseur
+
+  # — Titre
+  tput cup "$_refresh_ROW_TITLE" 0
+  printf '  %s%s%s  %s·%s  %s' \
+    "${FG_BLUE}${BOLD}" "$(msg app_name)" "${RESET}" \
+    "${DIM}" "${RESET}" \
+    "${DIM}$(msg refresh_title)${RESET}"
+
+  # — Les 3 étapes (état initial : en attente)
+  _refresh_draw_step "$_refresh_ROW_STEP1" 0 "$(msg refresh_step1)"
+  _refresh_draw_step "$_refresh_ROW_STEP2" 0 "$(msg refresh_step2)"
+  _refresh_draw_step "$_refresh_ROW_STEP3" 0 "$(msg refresh_step3)"
+
+  # — Barre vide
+  _refresh_draw_bar 0
+
+  # — Statusbar
+  tput cup "$_refresh_ROW_STATUS" 0
+  _statusbar "$(msg refresh_running)"
+}
+
+# Dessine une étape à la ligne $1, état $2 (0=wait 1=run 2=ok 3=err), label $3
+_refresh_draw_step() {
+  local row="$1" state="$2" label="$3"
+  local icon color
+  case "$state" in
+    0) icon="○" ; color="${DIM}" ;;
+    1) icon="◉" ; color="${FG_CYAN}${BOLD}" ;;
+    2) icon="✓" ; color="${FG_GREEN}${BOLD}" ;;
+    3) icon="✗" ; color="${FG_RED}${BOLD}" ;;
+  esac
+  tput cup "$row" 0
+  # Effacer la ligne entière avant de réécrire
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s%s%s  %s' "$color" "$icon" "${RESET}" "$label"
+}
+
+# Dessine la barre de progression : $1 = pourcentage 0-100
+_refresh_draw_bar() {
+  local pct="$1"
+  local inner=$(( TERM_COLS - 6 ))
+  (( inner < 10 )) && inner=10
+  local filled=$(( pct * inner / 100 ))
+  local empty=$(( inner - filled ))
+
+  tput cup "$_refresh_ROW_BAR" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s[%s%s%s%s%s]%s  %s%3d%%%s' \
+    "${DIM}" \
+    "${RESET}${FG_CYAN}${BOLD}" \
+    "$(printf '%*s' "$filled" '' | tr ' ' '█')" \
+    "${RESET}${DIM}" \
+    "$(printf '%*s' "$empty"  '' | tr ' ' '░')" \
+    "${RESET}${DIM}" "${RESET}" \
+    "${FG_CYAN}${BOLD}" "$pct" "${RESET}"
+}
+
+# Affiche une ligne de log défilant à la ligne dédiée (tronquée à TERM_COLS-4)
+_refresh_draw_log() {
+  local line="$1"
+  local maxlen=$(( TERM_COLS - 4 ))
+  (( maxlen < 10 )) && maxlen=10
+  # Tronquer si trop long
+  if (( ${#line} > maxlen )); then
+    line="${line:0:$(( maxlen - 1 ))}…"
+  fi
+  tput cup "$_refresh_ROW_LOG" 0
+  tput el 2>/dev/null || printf '\033[2K'
+  printf '  %s%s%s' "${DIM}" "$line" "${RESET}"
+}
+
+# Anime un spinner sur la ligne $1 pendant que le PID $2 tourne.
+# Met à jour la progression en parsant un fichier temporaire écrit
+# par le lecteur de pipe en parallèle.
+# $3 = fichier de compteur (écrit par le lecteur apt)
+# $4 = total estimé de sources (pour le %)
+_refresh_spin_while() {
+  local row="$1" pid="$2" cntfile="$3" total_src="$4" label="$5"
+  local frames=('◉' '◎' '◉' '◌')
+  local fi=0
+  local color="${FG_CYAN}${BOLD}"
+
+  while kill -0 "$pid" 2>/dev/null; do
+    local fetched=0
+    [[ -f "$cntfile" ]] && fetched=$(cat "$cntfile" 2>/dev/null || echo 0)
+    local pct=0
+    if (( total_src > 0 && fetched > 0 )); then
+      pct=$(( fetched * 90 / total_src ))   # on garde 10% pour la phase parse
+      (( pct > 90 )) && pct=90
+    else
+      # Pas de total connu : animation indéterminée (va jusqu'à 50%)
+      (( pct < 50 )) && pct=$(( pct + 1 ))
+    fi
+
+    tput cup "$row" 0
+    tput el 2>/dev/null || printf '\033[2K'
+    printf '  %s%s%s  %s' \
+      "$color" "${frames[$fi]}" "${RESET}" "$label"
+
+    _refresh_draw_bar "$pct"
+    fi=$(( (fi + 1) % ${#frames[@]} ))
+    sleep 0.12
+  done
+}
+
+# Fonction principale de refresh
 refresh_updates() {
   ensure_sudo || { pause; return 1; }
 
   _check_resize
-  tput clear 2>/dev/null || clear
-  echo ""
-  echo "  ${BG_YELLOW}${FG_WHITE}${BOLD} ➜ $(msg checking_updates) ${RESET}"
-  echo ""
+  _refresh_draw_frame
 
-  run_cmd apt-get update
+  # ── Étape 1 : apt-get update ──────────────────────────────────────────
+  _refresh_draw_step "$_refresh_ROW_STEP1" 1 "$(msg refresh_step1)"
+
+  # Fichiers temporaires
+  local tmpdir; tmpdir=$(mktemp -d)
+  local pipe_log="${tmpdir}/apt.log"
+  local cnt_file="${tmpdir}/fetched_count"
+  local total_file="${tmpdir}/total_src"
+  echo 0 > "$cnt_file"
+  echo 0 > "$total_file"
+  mkfifo "$pipe_log"
+
+  # Lancer apt-get update ; stdout+stderr → pipe
+  run_cmd apt-get update > "$pipe_log" 2>&1 &
+  local apt_pid=$!
+
+  # Lecteur du pipe en arrière-plan : parse les lignes apt et met à jour
+  # cnt_file + affiche le log défilant
+  (
+    local fetched=0 total=0
+    while IFS= read -r aptline; do
+      # Compter les sources (Hit:/Get:/Ign:)
+      if [[ "$aptline" =~ ^(Get|Hit|Ign):[0-9] ]]; then
+        (( fetched++ )) || true
+        echo "$fetched" > "$cnt_file"
+      fi
+      # Détecter le total de sources depuis la ligne "Reading package lists"
+      if [[ "$aptline" =~ ^Fetched ]] || [[ "$aptline" =~ ^[0-9]+[[:space:]]+(packages|paquets) ]]; then
+        echo "$fetched" > "$total_file"
+      fi
+      # Afficher la ligne de log (depuis le process principal via tput)
+      # On écrit dans un second fichier lu par le spinner
+      printf '%s\n' "$aptline" >> "${tmpdir}/lastlog"
+    done < "$pipe_log"
+  ) &
+  local reader_pid=$!
+
+  # Spinner + barre de progression pendant apt-get update
+  local total_src=0
+  local fi=0
+  local frames=('◉' '◎' '◉' '◌')
+  while kill -0 "$apt_pid" 2>/dev/null; do
+    local fetched=0
+    [[ -f "$cnt_file" ]] && fetched=$(cat "$cnt_file" 2>/dev/null || echo 0)
+    # Lire la dernière ligne de log et l'afficher
+    if [[ -f "${tmpdir}/lastlog" ]]; then
+      local lastline
+      lastline=$(tail -1 "${tmpdir}/lastlog" 2>/dev/null || true)
+      [[ -n "$lastline" ]] && _refresh_draw_log "$lastline"
+    fi
+
+    local pct=0
+    if (( fetched > 3 )); then
+      # Estimation souple : 1 source ≈ 3-4% jusqu'à 85%
+      pct=$(( fetched * 4 ))
+      (( pct > 85 )) && pct=85
+    fi
+
+    tput cup "$_refresh_ROW_STEP1" 0
+    tput el 2>/dev/null || printf '\033[2K'
+    printf '  %s%s%s  %s' \
+      "${FG_CYAN}${BOLD}" "${frames[$fi]}" "${RESET}" "$(msg refresh_step1)"
+
+    _refresh_draw_bar "$pct"
+    fi=$(( (fi + 1) % 4 ))
+    sleep 0.12
+  done
+
+  wait "$apt_pid"
+  local apt_exit=$?
+  wait "$reader_pid" 2>/dev/null || true
+
+  # Vider la ligne de log
+  tput cup "$_refresh_ROW_LOG" 0
+  tput el 2>/dev/null || printf '\033[2K'
+
+  if (( apt_exit != 0 )); then
+    _refresh_draw_step "$_refresh_ROW_STEP1" 3 "$(msg refresh_step1)"
+    _refresh_draw_bar 0
+    tput cup $(( _refresh_ROW_STATUS + 2 )) 0
+    echo ""
+    echo "  ${FG_RED}$(msg refresh_apt_failed)${RESET}"
+    log ERROR "apt-get update a échoué (exit $apt_exit)"
+    rm -rf "$tmpdir"
+    tput cnorm 2>/dev/null || true
+    pause; return 1
+  fi
+
+  _refresh_draw_step "$_refresh_ROW_STEP1" 2 "$(msg refresh_step1)"
+  _refresh_draw_bar 90
 
   LAST_REFRESH=$(date '+%Y-%m-%d %H:%M:%S')
   log INFO "apt-get update exécuté"
+
+  # ── Étape 2 : lecture de la liste upgradable ──────────────────────────
+  _refresh_draw_step "$_refresh_ROW_STEP2" 1 "$(msg refresh_step2)"
 
   UPGRADABLE=()
   UPGRADABLE_VERSIONS_CUR=()
   UPGRADABLE_VERSIONS_NEW=()
   UPGRADABLE_TYPES=()
 
-  # .: utiliser dpkg-query + apt-cache policy pour un parsing fiable,
-  # indépendant de la locale et du format de sortie d'apt list.
   local list_raw
   list_raw=$(apt list --upgradable 2>/dev/null | tail -n +2)
 
@@ -253,24 +480,18 @@ refresh_updates() {
 
     local name="${line%%/*}"
     local rem="${line#*/}"
-    # .: extraction robuste — le format est :
-    #   nom/repo arch version_new [upgradable from: version_cur]
     local version_new="?"
     local version_cur="?"
 
-    # Extraire la version nouvelle (premier token après "arch ")
     if [[ "$rem" =~ [[:space:]]([^[:space:]]+)[[:space:]] ]]; then
       version_new="${BASH_REMATCH[1]}"
     fi
-    # .: pattern insensible à la casse et aux variantes de locale apt
     if [[ "$line" =~ \[upgradable[[:space:]]from:[[:space:]]([^]]+)\] ]] || \
        [[ "$line" =~ \[mise[[:space:]]à[[:space:]]jour[[:space:]]depuis[[:space:]]:?[[:space:]]([^]]+)\] ]]; then
       version_cur="${BASH_REMATCH[1]}"
     fi
 
     local type_tag="normal"
-    # .: vérifier uniquement le champ repo (avant le premier espace)
-    # pour éviter les faux positifs sur des noms de paquets contenant "security"
     local repo_field="${rem%%[[:space:]]*}"
     if [[ "$repo_field" == *security* ]]; then
       type_tag="security"
@@ -282,12 +503,43 @@ refresh_updates() {
     UPGRADABLE_TYPES+=("$type_tag")
   done <<< "$list_raw"
 
+  _refresh_draw_step "$_refresh_ROW_STEP2" 2 "$(msg refresh_step2)"
+  _refresh_draw_bar 97
+
+  rm -rf "$tmpdir"
+
+  # ── Étape 3 : résumé ─────────────────────────────────────────────────
   local found=${#UPGRADABLE[@]}
-  echo ""
-  echo "  ${BG_GREEN}${FG_WHITE}${BOLD} ✓ $(msg refresh_done) ${RESET}"
-  # .: chaîne passée par msg() — plus de texte français codé en dur
-  echo "  ${FG_GREEN}  Trouvé ${found} $(msg packages_found)${RESET}"
-  log INFO "Trouvé ${found} paquets"
+  local sec_count=0
+  if (( ${#UPGRADABLE_TYPES[@]} > 0 )); then
+    for t in "${UPGRADABLE_TYPES[@]}"; do
+      [[ "$t" == "security" ]] && (( sec_count++ )) || true
+    done
+  fi
+
+  _refresh_draw_step "$_refresh_ROW_STEP3" 2 "$(msg refresh_step3)"
+  _refresh_draw_bar 100
+
+  # — Ligne de résumé sous la barre
+  tput cup $(( _refresh_ROW_BAR + 2 )) 0
+  tput el 2>/dev/null || printf '\033[2K'
+  if (( found == 0 )); then
+    printf '  %s✓ %s%s\n' "${FG_GREEN}${BOLD}" "$(msg refresh_uptodate)" "${RESET}"
+  else
+    printf '  %s✓ %s%s' "${FG_GREEN}${BOLD}" "" "${RESET}"
+    printf '%s%d%s %s' "${FG_CYAN}${BOLD}" "$found" "${RESET}" "$(msg packages_found)"
+    if (( sec_count > 0 )); then
+      printf '  %s⚠ %d %s%s' "${FG_RED}${BOLD}" "$sec_count" "$(msg menu_security)" "${RESET}"
+    fi
+    printf '\n'
+  fi
+
+  # — Statusbar finale
+  tput cup "$_refresh_ROW_STATUS" 0
+  _statusbar "$(msg refresh_done_hint)"
+
+  log INFO "Trouvé ${found} paquets (${sec_count} sécurité)"
+  tput cnorm 2>/dev/null || true
   pause
 }
 
@@ -404,7 +656,7 @@ parse_selection() {
 
   for part in $input; do
     if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-      # .: utiliser les groupes de capture nommés pour éviter
+      # FIX: utiliser les groupes de capture nommés pour éviter
       # l'ambiguïté de ${part%%-*} sur des nombres comme "10-20"
       local start="${BASH_REMATCH[1]}"
       local end="${BASH_REMATCH[2]}"
@@ -420,7 +672,7 @@ parse_selection() {
     fi
   done
 
-  # .: dédupliquer les indices pour éviter de mettre à jour
+  # FIX: dédupliquer les indices pour éviter de mettre à jour
   # deux fois le même paquet si l'utilisateur entre "1 1 2"
   local -A seen=()
   local deduped=()
@@ -487,7 +739,7 @@ get_user_selection() {
 
 confirm_timeout() {
   local prompt="$1" timeout="${2:-30}"
-  # .: stocker la regex dans une variable locale pour garantir
+  # FIX: stocker la regex dans une variable locale pour garantir
   # une interprétation correcte par [[ =~ ]] (pas de quotes autour de la var)
   local confirm_re; confirm_re=$(msg confirm_regex)
   local answer="" remaining=$timeout
@@ -544,7 +796,7 @@ do_select_and_upgrade_impl() {
 
   for idx in "${SELECTED_IDX[@]}"; do
     pkgs+=("${UPGRADABLE[$idx]}")
-    # .: accès sécurisé aux tableaux — utiliser ${arr[idx]:-?}
+    # FIX: accès sécurisé aux tableaux — utiliser ${arr[idx]:-?}
     # pour éviter que set -u ne cause un crash si l'index est hors bornes
     local cur_v="${UPGRADABLE_VERSIONS_CUR[$idx]:-?}"
     local new_v="${UPGRADABLE_VERSIONS_NEW[$idx]:-?}"
@@ -556,7 +808,7 @@ do_select_and_upgrade_impl() {
   echo ""
 
   if [[ "$DRY_RUN_ONLY" -eq 1 ]]; then
-    # .: message passé par msg()
+    # FIX: message passé par msg()
     echo "  ${FG_YELLOW}$(msg dryrun_disabled)${RESET}"
     pause; return
   fi
@@ -578,11 +830,11 @@ do_select_and_upgrade_impl() {
   fi
 
   log INFO "Paquets mis à jour : ${pkgs[*]}"
-  # .: message passé par msg()
+  # FIX: message passé par msg()
   echo "  ${FG_GREEN}$(msg upgrade_ok)${RESET}"
 
   # Retirer les paquets mis à jour de la liste locale
-  # .: reconstruire les tableaux plutôt que de les vider
+  # FIX: reconstruire les tableaux plutôt que de les vider
   # — conserve les paquets non sélectionnés
   local -a new_upgradable=() new_cur=() new_new=() new_types=()
   local -A upgraded=()
@@ -629,7 +881,7 @@ do_dry_run_impl() {
       pause
       return
     fi
-    # .: message passé par msg()
+    # FIX: message passé par msg()
     echo "  ${FG_GREEN}$(msg dryrun_ok)${RESET}"
     pause
   fi
@@ -644,7 +896,7 @@ do_hold_manager() {
     tput clear 2>/dev/null || clear
     _header
     _section "$(msg hold_manager)"
-    # .: libellés des options passés par msg()
+    # FIX: libellés des options passés par msg()
     echo "  ${BOLD}1${RESET}  $(msg hold_apply)"
     echo "  ${BOLD}2${RESET}  $(msg hold_remove)"
     echo "  ${BOLD}3${RESET}  $(msg hold_view)"
@@ -672,7 +924,7 @@ do_hold_manager() {
         if (( ${#HELD_PACKAGES[@]} == 0 )); then
           echo "  ${FG_YELLOW}$(msg no_held)${RESET}"; pause; continue
         fi
-        # .: construire le tableau de types associé plutôt qu'une
+        # FIX: construire le tableau de types associé plutôt qu'une
         # boucle séparée — les deux tableaux doivent être de même taille
         local -a held_types=()
         for _ in "${HELD_PACKAGES[@]}"; do held_types+=("normal"); done
@@ -714,7 +966,7 @@ do_show_logs() {
   if [[ -f "$LOG_FILE" ]]; then
     tail -n 20 "$LOG_FILE"
   else
-    # .: message passé par msg()
+    # FIX: message passé par msg()
     echo "  ${FG_YELLOW}$(msg log_none)${RESET}"
   fi
   pause
@@ -727,7 +979,7 @@ select_language() {
   _check_resize
   tput clear 2>/dev/null || clear
   _header
-  # .: titre passé par msg()
+  # FIX: titre passé par msg()
   _section "$(msg lang_title)"
   echo "  ${BOLD}1${RESET}  English"
   echo "  ${BOLD}2${RESET}  Français"
@@ -753,7 +1005,7 @@ main_menu() {
 
     local pkg_count="${#UPGRADABLE[@]}"
     local sec_count=0
-    # .: tester la taille du tableau avant de boucler — évite
+    # FIX: tester la taille du tableau avant de boucler — évite
     # l'expansion en élément vide avec ${arr[@]:-} quand set -u est actif
     if (( ${#UPGRADABLE_TYPES[@]} > 0 )); then
       for t in "${UPGRADABLE_TYPES[@]}"; do
@@ -784,7 +1036,7 @@ main_menu() {
       u) do_select_and_upgrade ;;
       d) do_dry_run ;;
       h) do_hold_manager ;;
-      # .: séparer l (logs) et L (langue) en deux branches distinctes
+      # : séparer l (logs) et L (langue) en deux branches distinctes
       # — dans la version originale, l|L absorbait L avant la branche "L",
       # rendant le changement de langue totalement inaccessible
       l) do_show_logs ;;
